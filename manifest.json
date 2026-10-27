@@ -4,7 +4,7 @@
   "name": "OMAPP",
   "version": "1.0.0",
   "author": "waldseelen",
-  "description": "App Manager & Revo-style deep uninstaller for Omarchy. Track versions, updates, disk usage, and purge leftovers.",
+  "description": "Native App Manager, Process Task Manager & Deep Residual Uninstaller for Omarchy and Arch Linux.",
   "license": "MIT",
   "repository": "https://github.com/waldseelen/omarchy-omapp",
   "kinds": ["overlay", "menu"],

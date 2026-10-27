@@ -1,6 +1,6 @@
-# OMAPP (Omarchy App Manager & Revo-Style Deep Uninstaller)
+# OMAPP (Omarchy App Manager & Deep Uninstaller)
 
-Native Quickshell overlay application manager and "Revo-style" deep uninstaller for Omarchy and Arch Linux. Track installed apps, package sizes, versions, update dates, running processes, and cleanly purge residual configurations and caches.
+Native Quickshell overlay application manager, live process task manager, and deep uninstaller for Omarchy and Arch Linux. Track installed apps, package sizes, versions, update dates, running processes, and cleanly purge residual configurations and caches.
 
 ![OMAPP Preview](preview.png)
 
@@ -10,7 +10,7 @@ Native Quickshell overlay application manager and "Revo-style" deep uninstaller 
 
 - **Complete Inventory**: Aggregates Desktop GUI applications, native Arch packages (`pacman`), AUR packages (`yay`), and Web Apps / PWAs into a single unified manager.
 - **Fast Search & Sorting**: Instant search across names, packages, binaries, and descriptions. Sort by total disk footprint, install date, update date, or name.
-- **Revo Uninstaller Deep Cleaner**:
+- **Native Deep Cleaner**:
   - **Process Protection**: Automatically detects if an application is running and offers graceful termination before removal.
   - **Reverse Dependency Warning**: Alerts you if other installed packages depend on the application before you uninstall.
   - **Clean Package Removal**: Removes the system package non-interactively via pacman (`-Rns`).
@@ -56,7 +56,7 @@ The following tools should be present on your Omarchy / Arch system:
 | `↑` / `K` | Select previous application |
 | `/` or `Ctrl + F` | Focus search bar |
 | `Tab` | Switch category tabs (All, Desktop, CLI/System, AUR, Web Apps, Large) |
-| `Del` or `U` | Start Deep Uninstall (Revo workflow) |
+| `Del` or `U` | Start Deep Uninstall workflow |
 | `Enter` | Inspect application details |
 | `Esc` | Close active dialog or exit OMAPP |
 

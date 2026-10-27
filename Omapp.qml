@@ -9,6 +9,7 @@ import "script/SudoKeeper.js" as SudoKeeper
 import "script/LeftoverHunter.js" as LeftoverHunter
 import "script/Scanner.js" as Scanner
 import "script/Sorter.js" as Sorter
+import "script/TaskManager.js" as TaskManager
 
 Item {
   id: root
@@ -18,20 +19,32 @@ Item {
   property bool opened: false
   property string home: Quickshell.env("HOME")
 
-  // Inventory & Filter State
+  // Navigation: "apps", "tasks", "janitor"
+  property string activeTab: "apps"
+  property bool isJanitorView: activeTab === "janitor"
+
+  // Inventory & Filter State (Apps Tab)
   property var rawItems: []
   property var displayItems: []
   property int selectedIndex: 0
   property string filterText: ""
   property string activeCategory: "all"
   property string activeSort: "size"
-  property bool isJanitorView: false
+
+  // Task Manager State (Tasks Tab)
+  property var rawTasks: []
+  property var displayTasks: []
+  property int selectedTaskIndex: 0
+  property string taskCategory: "all"
+  property string taskSort: "cpu"
+  property string taskFilterText: ""
 
   // Sudo & Process State
   property bool sudoActive: false
   property bool sudoModalOpen: false
   property string sudoErrorMessage: ""
   property var runningPids: ({})
+  property var pendingUninstallApp: null
 
   // Deep Uninstall & Leftover State
   property bool leftoverModalOpen: false
@@ -46,12 +59,23 @@ Item {
 
   function open(payloadJson) {
     root.opened = true;
+    if (payloadJson) {
+      try {
+        var data = JSON.parse(payloadJson);
+        if (data.tab) root.activeTab = data.tab;
+      } catch (e) {
+        if (payloadJson === "tasks" || payloadJson === "janitor" || payloadJson === "apps") {
+          root.activeTab = payloadJson;
+        }
+      }
+    }
     if (root.shell && root.shell.appLibrary && typeof root.shell.appLibrary.refreshIcons === "function") {
       root.shell.appLibrary.refreshIcons();
     }
     root.checkSudoStatus();
     root.refreshInventory();
     root.refreshProcessStatus();
+    root.refreshTasks();
     Qt.callLater(function() {
       if (header) header.focusSearch();
     });
@@ -61,13 +85,18 @@ Item {
     root.opened = false;
     root.sudoModalOpen = false;
     root.leftoverModalOpen = false;
+    leftoverModal.isOpen = false;
   }
 
-  function toggle() {
+  function toggle(payloadJson) {
     if (root.opened) {
-      close();
+      if (payloadJson && payloadJson !== root.activeTab) {
+        open(payloadJson);
+      } else {
+        close();
+      }
     } else {
-      open();
+      open(payloadJson);
     }
   }
 
@@ -76,12 +105,14 @@ Item {
       root.checkSudoStatus();
       root.refreshInventory();
       root.refreshProcessStatus();
+      root.refreshTasks();
       Qt.callLater(function() {
         if (header) header.focusSearch();
       });
     } else {
       root.sudoModalOpen = false;
       root.leftoverModalOpen = false;
+      leftoverModal.isOpen = false;
     }
   }
 
@@ -131,26 +162,52 @@ Item {
         OmappHeader {
           id: header
           width: parent.width
-          filterText: root.filterText
-          activeCategory: root.activeCategory
-          activeSort: root.activeSort
-          itemCount: root.displayItems.length
+          filterText: root.activeTab === "tasks" ? root.taskFilterText : root.filterText
+          activeTab: root.activeTab
+          activeCategory: root.activeTab === "tasks" ? root.taskCategory : root.activeCategory
+          activeSort: root.activeTab === "tasks" ? root.taskSort : root.activeSort
+          itemCount: root.activeTab === "tasks" ? root.displayTasks.length : root.displayItems.length
           sudoActive: root.sudoActive
-          isJanitorView: root.isJanitorView
 
           onSearchChanged: function(text) {
-            root.filterText = text;
-            root.updateDisplayList();
+            if (root.activeTab === "tasks") {
+              root.taskFilterText = text;
+              root.updateTaskDisplayList();
+            } else {
+              root.filterText = text;
+              root.updateDisplayList();
+            }
+          }
+
+          onTabChanged: function(tab) {
+            root.activeTab = tab;
+            if (tab === "tasks") {
+              root.refreshTasks();
+            } else if (tab === "janitor") {
+              root.refreshJanitorStats();
+            } else {
+              root.updateDisplayList();
+            }
           }
 
           onCategorySelected: function(cat) {
-            root.activeCategory = cat;
-            root.updateDisplayList();
+            if (root.activeTab === "tasks") {
+              root.taskCategory = cat;
+              root.updateTaskDisplayList();
+            } else {
+              root.activeCategory = cat;
+              root.updateDisplayList();
+            }
           }
 
           onSortChanged: function(mode) {
-            root.activeSort = mode;
-            root.updateDisplayList();
+            if (root.activeTab === "tasks") {
+              root.taskSort = mode;
+              root.updateTaskDisplayList();
+            } else {
+              root.activeSort = mode;
+              root.updateDisplayList();
+            }
           }
 
           onSudoClicked: {
@@ -158,16 +215,9 @@ Item {
             root.sudoModalOpen = true;
             sudoModal.initFocus();
           }
-
-          onJanitorToggled: {
-            root.isJanitorView = !root.isJanitorView;
-            if (root.isJanitorView) {
-              root.refreshJanitorStats();
-            }
-          }
         }
 
-        // Main View Area: Apps Split View OR Janitor View
+        // Main View Area: 1. Apps Split View, 2. Tasks View, 3. Janitor View
         Item {
           width: parent.width
           height: parent.height - header.height - Style.space(12)
@@ -176,7 +226,7 @@ Item {
           Row {
             anchors.fill: parent
             spacing: Style.space(14)
-            visible: !root.isJanitorView
+            visible: root.activeTab === "apps"
 
             // Left Pane: Scrollable List of Apps
             Rectangle {
@@ -195,7 +245,10 @@ Item {
                 model: root.displayItems
                 currentIndex: root.selectedIndex
                 spacing: Style.space(4)
+                pixelAligned: true
                 boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+                highlightMoveDuration: 0
 
                 delegate: AppGridRow {
                   shell: root.shell
@@ -274,20 +327,50 @@ Item {
             }
           }
 
-          // 2. System Janitor View
+          // 2. Task Manager View (Live Process Manager)
+          TaskManagerView {
+            anchors.fill: parent
+            visible: root.activeTab === "tasks"
+            shell: root.shell
+            tasks: root.displayTasks
+            selectedIndex: root.selectedTaskIndex
+            activeCategory: root.taskCategory
+            activeSort: root.taskSort
+            filterText: root.taskFilterText
+            sudoActive: root.sudoActive
+
+            onKillRequested: function(pid, force) {
+              root.killTask(pid, force);
+            }
+
+            onOpenLocationRequested: function(pid) {
+              root.openTaskLocation(pid);
+            }
+
+            onInspectPackageRequested: function(pkg) {
+              root.inspectTaskPackage(pkg);
+            }
+
+            onRefreshRequested: {
+              root.refreshTasks();
+            }
+          }
+
+          // 3. System Janitor View
           SystemJanitorView {
             anchors.fill: parent
-            visible: root.isJanitorView
+            visible: root.activeTab === "janitor"
             orphanCountText: root.janitorOrphanText
             pacmanCacheSize: root.janitorPacmanCache
             aurCacheSize: root.janitorYayCache
 
-            onBackClicked: root.isJanitorView = false
+            onBackClicked: root.activeTab = "apps"
 
             onCleanOrphansRequested: {
               if (!root.sudoActive) {
                 root.sudoErrorMessage = "Sudo required to prune orphan packages";
                 root.sudoModalOpen = true;
+                sudoModal.initFocus();
                 return;
               }
               orphanPruneProc.running = true;
@@ -297,6 +380,7 @@ Item {
               if (!root.sudoActive) {
                 root.sudoErrorMessage = "Sudo required to trim pacman cache";
                 root.sudoModalOpen = true;
+                sudoModal.initFocus();
                 return;
               }
               pacmanCacheCleanProc.running = true;
@@ -321,6 +405,7 @@ Item {
 
         onCancelled: {
           root.sudoModalOpen = false;
+          root.pendingUninstallApp = null;
         }
       }
 
@@ -340,6 +425,7 @@ Item {
 
         onClosed: {
           root.leftoverModalOpen = false;
+          leftoverModal.isOpen = false;
           root.refreshInventory();
         }
       }
@@ -348,19 +434,20 @@ Item {
     // Global Key Handling inside Panel
     Item {
       id: keyHandler
-      focus: true
-
+      focus: root.opened
       Keys.onPressed: function(event) {
         if (event.key === Qt.Key_Escape) {
           if (root.sudoModalOpen) {
             root.sudoModalOpen = false;
+            root.pendingUninstallApp = null;
             event.accepted = true;
           } else if (root.leftoverModalOpen) {
             root.leftoverModalOpen = false;
+            leftoverModal.isOpen = false;
             root.refreshInventory();
             event.accepted = true;
-          } else if (root.isJanitorView) {
-            root.isJanitorView = false;
+          } else if (root.activeTab !== "apps") {
+            root.activeTab = "apps";
             event.accepted = true;
           } else {
             root.opened = false;
@@ -369,27 +456,48 @@ Item {
           return;
         }
 
-        // App navigation keys
-        if (!root.sudoModalOpen && !root.leftoverModalOpen && !root.isJanitorView) {
-          if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
-            if (root.selectedIndex < root.displayItems.length - 1) {
-              root.selectedIndex++;
-              appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+        // Navigation keys
+        if (!root.sudoModalOpen && !root.leftoverModalOpen) {
+          if (root.activeTab === "apps") {
+            if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
+              if (root.selectedIndex < root.displayItems.length - 1) {
+                root.selectedIndex++;
+                appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+              }
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
+              if (root.selectedIndex > 0) {
+                root.selectedIndex--;
+                appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+              }
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
+              var cur = root.displayItems[root.selectedIndex];
+              if (cur) root.startDeepUninstall(cur);
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Slash) {
+              header.focusSearch();
+              event.accepted = true;
             }
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
-            if (root.selectedIndex > 0) {
-              root.selectedIndex--;
-              appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+          } else if (root.activeTab === "tasks") {
+            if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
+              if (root.selectedTaskIndex < root.displayTasks.length - 1) {
+                root.selectedTaskIndex++;
+              }
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
+              if (root.selectedTaskIndex > 0) {
+                root.selectedTaskIndex--;
+              }
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
+              var curTask = root.displayTasks[root.selectedTaskIndex];
+              if (curTask) root.killTask(curTask.pid, false);
+              event.accepted = true;
+            } else if (event.key === Qt.Key_Slash) {
+              header.focusSearch();
+              event.accepted = true;
             }
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
-            var cur = root.displayItems[root.selectedIndex];
-            if (cur) root.startDeepUninstall(cur);
-            event.accepted = true;
-          } else if (event.key === Qt.Key_Slash) {
-            header.focusSearch();
-            event.accepted = true;
           }
         }
       }
@@ -443,8 +551,15 @@ Item {
         if (!sudoKeepaliveProc.running) {
           sudoKeepaliveProc.running = true;
         }
+        if (root.pendingUninstallApp) {
+          var target = root.pendingUninstallApp;
+          root.pendingUninstallApp = null;
+          root.startDeepUninstall(target);
+        }
       } else {
+        root.sudoActive = false;
         root.sudoErrorMessage = "Authentication failed. Incorrect password.";
+        sudoModal.initFocus();
       }
     }
   }
@@ -482,7 +597,32 @@ Item {
     }
   }
 
-  // 6. Package Uninstall Process
+  // 6. Task Manager Live Process Scanner
+  Process {
+    id: taskScanProc
+    command: TaskManager.buildProcessScanScript()
+    stdout: StdioCollector {
+      id: taskScanOutput
+      waitForEnd: true
+    }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0) {
+        var user = Quickshell.env("USER") || "";
+        root.rawTasks = TaskManager.parseProcessOutput(taskScanOutput.text, user);
+        root.updateTaskDisplayList();
+      }
+    }
+  }
+
+  Timer {
+    id: taskRefreshTimer
+    interval: 2000
+    repeat: true
+    running: root.opened && root.activeTab === "tasks"
+    onTriggered: root.refreshTasks()
+  }
+
+  // 7. Package Uninstall Process
   Process {
     id: uninstallProc
     property var targetApp: null
@@ -494,12 +634,14 @@ Item {
         leftoverModal.statusMessage = "Scanning for residual configs and caches...";
         root.runLeftoverScan(uninstallProc.targetApp);
       } else {
+        root.sudoActive = false; // In case sudo credentials expired
+        leftoverModal.phase = 1;
         leftoverModal.statusMessage = "Package removal failed: " + (uninstallErr.text || "Check sudo permissions");
       }
     }
   }
 
-  // 7. Leftover Scan Process
+  // 8. Leftover Scan Process
   Process {
     id: leftoverScanProc
     property var targetApp: null
@@ -513,7 +655,7 @@ Item {
     }
   }
 
-  // 8. Leftover Purge Process (Backup then rm -rf)
+  // 9. Leftover Purge Process (Backup then rm -rf)
   Process {
     id: leftoverPurgeProc
     onExited: function(exitCode, exitStatus) {
@@ -523,32 +665,66 @@ Item {
     }
   }
 
-  // 9. Orphan Checker Process
+  // 10. Orphan Package Detector
   Process {
     id: orphanCheckProc
-    command: ["bash", "-c", "pacman -Qtdq 2>/dev/null || true"]
-    stdout: StdioCollector { id: orphanOut; waitForEnd: true }
+    command: ["bash", "-c", "pacman -Qtdq 2>/dev/null || echo NO_ORPHANS"]
+    stdout: StdioCollector {
+      id: orphanOutput
+      waitForEnd: true
+    }
     onExited: function(exitCode, exitStatus) {
-      var text = orphanOut.text.trim();
-      root.orphanList = text || "NO_ORPHANS";
-      leftoverModal.orphanListText = text || "NO_ORPHANS";
-      var count = text ? text.split("\n").length : 0;
-      root.janitorOrphanText = count + " orphan packages";
+      var text = orphanOutput.text.trim();
+      if (text && text !== "NO_ORPHANS") {
+        root.orphanList = text;
+        leftoverModal.orphanListText = text;
+      } else {
+        root.orphanList = "";
+        leftoverModal.orphanListText = "";
+      }
     }
   }
 
-  // 10. Orphan Prune Process
+  // 11. Orphan Pruner Process
   Process {
     id: orphanPruneProc
-    command: SudoKeeper.buildOrphanCleanCommand()
+    command: SudoKeeper.buildOrphanPruneCommand()
     onExited: function(exitCode, exitStatus) {
-      root.orphanList = "NO_ORPHANS";
-      leftoverModal.orphanListText = "NO_ORPHANS";
-      root.janitorOrphanText = "0 orphan packages";
+      root.orphanList = "";
+      leftoverModal.orphanListText = "";
+      root.refreshJanitorStats();
     }
   }
 
-  // 11. Pacman Cache Clean Process
+  // 12. Janitor Stats Process
+  Process {
+    id: janitorStatsProc
+    command: [
+      "bash", "-c",
+      [
+        'orphans=$(pacman -Qtdq 2>/dev/null | wc -l)',
+        'pacsize=$(du -sh /var/cache/pacman/pkg 2>/dev/null | cut -f1 || echo "0 B")',
+        'yaysize=$(du -sh "$HOME/.cache/yay" 2>/dev/null | cut -f1 || echo "0 B")',
+        'echo -e "$orphans\\t$pacsize\\t$yaysize"'
+      ].join("\n")
+    ]
+    stdout: StdioCollector {
+      id: janitorStatsOut
+      waitForEnd: true
+    }
+    onExited: function(exitCode, exitStatus) {
+      if (exitCode === 0) {
+        var parts = janitorStatsOut.text.trim().split("\t");
+        if (parts.length >= 3) {
+          root.janitorOrphanText = parts[0] + " unneeded packages";
+          root.janitorPacmanCache = parts[1];
+          root.janitorYayCache = parts[2];
+        }
+      }
+    }
+  }
+
+  // 13. Cache Cleaner Processes
   Process {
     id: pacmanCacheCleanProc
     command: SudoKeeper.buildCacheCleanCommand()
@@ -557,33 +733,11 @@ Item {
     }
   }
 
-  // 12. AUR Yay Cache Clean Process
   Process {
     id: aurCacheCleanProc
-    command: ["bash", "-c", "rm -rf ~/.cache/yay/* 2>/dev/null"]
+    command: ["bash", "-c", 'rm -rf "$HOME/.cache/yay"/* 2>/dev/null']
     onExited: function(exitCode, exitStatus) {
       root.refreshJanitorStats();
-    }
-  }
-
-  // 13. Janitor Stats Query Process
-  Process {
-    id: janitorStatsProc
-    command: [
-      "bash", "-c",
-      'orphans=$(pacman -Qtdq 2>/dev/null | wc -l); ' +
-      'pac_sz=$(du -sh /var/cache/pacman/pkg 2>/dev/null | cut -f1); ' +
-      'aur_sz=$(du -sh ~/.cache/yay 2>/dev/null | cut -f1); ' +
-      'echo -e "$orphans\\t${pac_sz:-0 B}\\t${aur_sz:-0 B}"'
-    ]
-    stdout: StdioCollector { id: janitorStatsOut; waitForEnd: true }
-    onExited: function(exitCode, exitStatus) {
-      if (exitCode === 0) {
-        var parts = janitorStatsOut.text.trim().split("\t");
-        root.janitorOrphanText = (parts[0] || "0") + " orphan packages";
-        root.janitorPacmanCache = parts[1] || "0 B";
-        root.janitorYayCache = parts[2] || "0 B";
-      }
     }
   }
 
@@ -591,21 +745,27 @@ Item {
   // Helper Functions
   // -------------------------------------------------------------
 
-  function refreshInventory() {
-    if (!inventoryProc.running) {
-      inventoryProc.running = true;
-    }
-  }
-
   function checkSudoStatus() {
     if (!sudoStatusProc.running) {
       sudoStatusProc.running = true;
     }
   }
 
+  function refreshInventory() {
+    if (!inventoryProc.running) {
+      inventoryProc.running = true;
+    }
+  }
+
   function refreshProcessStatus() {
     if (!procCheck.running) {
       procCheck.running = true;
+    }
+  }
+
+  function refreshTasks() {
+    if (!taskScanProc.running) {
+      taskScanProc.running = true;
     }
   }
 
@@ -624,9 +784,18 @@ Item {
     }
   }
 
+  function updateTaskDisplayList() {
+    var user = Quickshell.env("USER") || "";
+    var filtered = TaskManager.filterTasks(root.rawTasks, root.taskFilterText, root.taskCategory, user);
+    var sorted = TaskManager.sortTasks(filtered, root.taskSort, "desc");
+    root.displayTasks = sorted;
+    if (root.selectedTaskIndex >= sorted.length) {
+      root.selectedTaskIndex = Math.max(0, sorted.length - 1);
+    }
+  }
+
   function authenticateSudo(pwd) {
     sudoModal.isChecking = true;
-    // Pipe password directly into stdin of sudo -S -v
     sudoAuthProc.command = ["bash", "-c", 'printf "%s\\n" "$1" | sudo -S -v', "sudo-auth", pwd];
     sudoAuthProc.running = true;
   }
@@ -634,8 +803,10 @@ Item {
   function startDeepUninstall(app) {
     if (!app) return;
     if (!root.sudoActive && app.category !== "webapp") {
-      root.sudoErrorMessage = "Authentication required to uninstall " + app.pkg;
+      root.pendingUninstallApp = app;
+      root.sudoErrorMessage = "Administrator password required to remove " + app.pkg;
       root.sudoModalOpen = true;
+      sudoModal.initFocus();
       return;
     }
 
@@ -643,6 +814,7 @@ Item {
     root.foundLeftovers = [];
     leftoverModal.phase = 1;
     leftoverModal.statusMessage = "Removing " + app.pkg + " via pacman...";
+    root.leftoverModalOpen = true;
     leftoverModal.isOpen = true;
 
     if (app.category === "webapp" || !app.pkg) {
@@ -682,9 +854,7 @@ Item {
 
     leftoverModal.isPurging = true;
 
-    // 1. Build backup command
     var backup = SafeOps.buildBackupCommand(paths, root.currentUninstallApp ? root.currentUninstallApp.pkg : "app", root.home);
-    // 2. Build permanent purge command
     var purge = SafeOps.buildPurgeCommand(paths, root.home);
 
     var compositeCmd = "";
@@ -733,5 +903,30 @@ Item {
     if (url) {
       Util.execDetached(["xdg-open", url]);
     }
+  }
+
+  function killTask(pid, force) {
+    var cmd = TaskManager.buildKillCommand(pid, force, root.sudoActive);
+    if (cmd) {
+      Util.execDetached(cmd);
+      Qt.callLater(function() {
+        root.refreshTasks();
+      });
+    }
+  }
+
+  function openTaskLocation(pid) {
+    var cmd = TaskManager.buildOpenFileLocationCommand(pid);
+    if (cmd) {
+      Util.execDetached(cmd);
+    }
+  }
+
+  function inspectTaskPackage(pkg) {
+    if (!pkg) return;
+    root.activeTab = "apps";
+    root.activeCategory = "all";
+    root.filterText = pkg;
+    root.updateDisplayList();
   }
 }

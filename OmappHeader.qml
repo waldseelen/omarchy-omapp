@@ -6,17 +6,18 @@ Item {
   id: headerRoot
 
   property string filterText: ""
+  property string activeTab: "apps" // "apps", "tasks", "janitor"
   property string activeCategory: "all"
   property string activeSort: "size"
   property int itemCount: 0
   property bool sudoActive: false
-  property bool isJanitorView: false
+  property bool isJanitorView: activeTab === "janitor"
 
   signal searchChanged(string text)
+  signal tabChanged(string tab)
   signal categorySelected(string category)
   signal sortChanged(string mode)
   signal sudoClicked()
-  signal janitorToggled()
 
   height: Style.space(92)
 
@@ -24,7 +25,7 @@ Item {
     anchors.fill: parent
     spacing: Style.space(10)
 
-    // Top Bar: Search Bar + Sudo Status + Janitor Button
+    // Top Bar: Search Bar + 3-Way Tab Switcher + Sudo Status
     Row {
       width: parent.width
       height: Style.space(40)
@@ -32,7 +33,7 @@ Item {
 
       // Search Box Container
       Rectangle {
-        width: parent.width - sudoBtn.width - janitorBtn.width - Style.space(20)
+        width: parent.width - tabSwitcher.width - sudoBtn.width - Style.space(20)
         height: parent.height
         radius: Style.cornerRadius
         color: Util.alpha(Color.menu.selectedBackground, 0.15)
@@ -65,7 +66,7 @@ Item {
           Text {
             anchors.fill: parent
             visible: !searchInput.text && !searchInput.activeFocus
-            text: "Search apps, packages, binaries (Press / or Ctrl+F)..."
+            text: headerRoot.activeTab === "tasks" ? "Filter running processes by name, PID, or user..." : "Search apps, packages, binaries (Press / or Ctrl+F)..."
             color: Util.alpha(Color.menu.text, 0.4)
             font: searchInput.font
           }
@@ -99,6 +100,110 @@ Item {
             onClicked: {
               searchInput.text = "";
               searchInput.forceActiveFocus();
+            }
+          }
+        }
+      }
+
+      // 3-Way Segmented Tab Switcher (Apps | Tasks | Janitor)
+      Rectangle {
+        id: tabSwitcher
+        height: parent.height
+        width: tabsRow.width + Style.space(8)
+        radius: Style.cornerRadius
+        color: Util.alpha(Color.menu.selectedBackground, 0.12)
+        border.width: 1
+        border.color: Util.alpha(Color.menu.border, 0.3)
+
+        Row {
+          id: tabsRow
+          anchors.centerIn: parent
+          spacing: Style.space(4)
+
+          // 1. Apps Tab
+          Rectangle {
+            height: Style.space(32)
+            width: appsTabText.implicitWidth + Style.space(20)
+            radius: Style.space(6)
+            color: headerRoot.activeTab === "apps" ? Color.accent : (appsMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent")
+
+            Row {
+              anchors.centerIn: parent
+              spacing: Style.space(6)
+              Text { text: "📦"; font.pixelSize: Style.space(12) }
+              Text {
+                id: appsTabText
+                text: "Apps"
+                color: headerRoot.activeTab === "apps" ? (Color.menu.background || "#18181b") : Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.space(11)
+                font.weight: headerRoot.activeTab === "apps" ? Font.Bold : Font.DemiBold
+              }
+            }
+
+            MouseArea {
+              id: appsMouse
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: headerRoot.tabChanged("apps")
+            }
+          }
+
+          // 2. Tasks Tab (Task Manager)
+          Rectangle {
+            height: Style.space(32)
+            width: tasksTabText.implicitWidth + Style.space(20)
+            radius: Style.space(6)
+            color: headerRoot.activeTab === "tasks" ? Color.accent : (tasksMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent")
+
+            Row {
+              anchors.centerIn: parent
+              spacing: Style.space(6)
+              Text { text: "📊"; font.pixelSize: Style.space(12) }
+              Text {
+                id: tasksTabText
+                text: "Tasks"
+                color: headerRoot.activeTab === "tasks" ? (Color.menu.background || "#18181b") : Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.space(11)
+                font.weight: headerRoot.activeTab === "tasks" ? Font.Bold : Font.DemiBold
+              }
+            }
+
+            MouseArea {
+              id: tasksMouse
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: headerRoot.tabChanged("tasks")
+            }
+          }
+
+          // 3. Janitor Tab
+          Rectangle {
+            height: Style.space(32)
+            width: janitorTabText.implicitWidth + Style.space(20)
+            radius: Style.space(6)
+            color: headerRoot.activeTab === "janitor" ? Color.accent : (janitorMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent")
+
+            Row {
+              anchors.centerIn: parent
+              spacing: Style.space(6)
+              Text { text: "🧹"; font.pixelSize: Style.space(12) }
+              Text {
+                id: janitorTabText
+                text: "Janitor"
+                color: headerRoot.activeTab === "janitor" ? (Color.menu.background || "#18181b") : Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.space(11)
+                font.weight: headerRoot.activeTab === "janitor" ? Font.Bold : Font.DemiBold
+              }
+            }
+
+            MouseArea {
+              id: janitorMouse
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              onClicked: headerRoot.tabChanged("janitor")
             }
           }
         }
@@ -139,42 +244,6 @@ Item {
           onClicked: headerRoot.sudoClicked()
         }
       }
-
-      // Janitor Tab Toggle Button
-      Rectangle {
-        id: janitorBtn
-        width: janitorText.implicitWidth + Style.space(24)
-        height: parent.height
-        radius: Style.cornerRadius
-        color: headerRoot.isJanitorView ? Util.alpha(Color.accent, 0.3) : Util.alpha(Color.menu.selectedBackground, 0.15)
-        border.width: 1
-        border.color: headerRoot.isJanitorView ? Color.accent : Util.alpha(Color.menu.border, 0.35)
-
-        Row {
-          anchors.centerIn: parent
-          spacing: Style.space(6)
-
-          Text {
-            text: "🧹"
-            font.pixelSize: Style.space(13)
-          }
-
-          Text {
-            id: janitorText
-            text: "Janitor"
-            color: headerRoot.isJanitorView ? Color.accent : Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.space(11)
-            font.weight: Font.DemiBold
-          }
-        }
-
-        MouseArea {
-          anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          onClicked: headerRoot.janitorToggled()
-        }
-      }
     }
 
     // Bottom Filter Bar: Category Pills (Left) + Sort & Count (Right)
@@ -190,14 +259,26 @@ Item {
         spacing: Style.space(6)
 
         Repeater {
-          model: [
-            { id: "all", label: "All" },
-            { id: "desktop", label: "Desktop" },
-            { id: "system", label: "System / CLI" },
-            { id: "aur", label: "AUR" },
-            { id: "webapp", label: "Web Apps" },
-            { id: "large", label: "Large" }
-          ]
+          model: {
+            if (headerRoot.activeTab === "tasks") {
+              return [
+                { id: "all", label: "All Tasks" },
+                { id: "user", label: "User Apps" },
+                { id: "system", label: "System Daemons" },
+                { id: "heavy_cpu", label: "Heavy CPU (>1%)" },
+                { id: "heavy_ram", label: "Heavy RAM (>100MB)" }
+              ];
+            } else {
+              return [
+                { id: "all", label: "All" },
+                { id: "desktop", label: "Desktop" },
+                { id: "system", label: "System / CLI" },
+                { id: "aur", label: "AUR" },
+                { id: "webapp", label: "Web Apps" },
+                { id: "large", label: "Large" }
+              ];
+            }
+          }
 
           Rectangle {
             property bool isActive: headerRoot.activeCategory === modelData.id
@@ -248,10 +329,17 @@ Item {
             id: sortText
             anchors.centerIn: parent
             text: {
-              if (headerRoot.activeSort === "size") return "Sort: Size ▾";
-              if (headerRoot.activeSort === "name") return "Sort: Name ▾";
-              if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
-              return "Sort: Build Date ▾";
+              if (headerRoot.activeTab === "tasks") {
+                if (headerRoot.activeSort === "cpu") return "Sort: CPU % ▾";
+                if (headerRoot.activeSort === "mem" || headerRoot.activeSort === "ram") return "Sort: RAM (RSS) ▾";
+                if (headerRoot.activeSort === "pid") return "Sort: PID ▾";
+                return "Sort: Name ▾";
+              } else {
+                if (headerRoot.activeSort === "size") return "Sort: Size ▾";
+                if (headerRoot.activeSort === "name") return "Sort: Name ▾";
+                if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
+                return "Sort: Build Date ▾";
+              }
             }
             color: Util.alpha(Color.menu.text, 0.85)
             font.family: Style.font.family
@@ -263,10 +351,17 @@ Item {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-              var modes = ["size", "name", "date", "update"];
-              var idx = modes.indexOf(headerRoot.activeSort);
-              var next = modes[(idx + 1) % modes.length];
-              headerRoot.sortChanged(next);
+              if (headerRoot.activeTab === "tasks") {
+                var taskModes = ["cpu", "mem", "pid", "name"];
+                var tIdx = taskModes.indexOf(headerRoot.activeSort);
+                var tNext = taskModes[(tIdx + 1) % taskModes.length];
+                headerRoot.sortChanged(tNext);
+              } else {
+                var modes = ["size", "name", "date", "update"];
+                var idx = modes.indexOf(headerRoot.activeSort);
+                var next = modes[(idx + 1) % modes.length];
+                headerRoot.sortChanged(next);
+              }
             }
           }
         }
@@ -275,7 +370,7 @@ Item {
         Text {
           id: countText
           anchors.verticalCenter: parent.verticalCenter
-          text: headerRoot.itemCount + " apps"
+          text: headerRoot.itemCount + (headerRoot.activeTab === "tasks" ? " processes" : " apps")
           color: Util.alpha(Color.menu.text, 0.5)
           font.family: Style.font.family
           font.pixelSize: Style.space(11)

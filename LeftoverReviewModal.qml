@@ -61,7 +61,7 @@ Rectangle {
           spacing: Style.space(2)
 
           Text {
-            text: "Revo Deep Uninstaller — " + (leftoverModalRoot.appItem ? (leftoverModalRoot.appItem.name || leftoverModalRoot.appItem.pkg) : "")
+            text: "OMAPP Deep Cleaner — " + (leftoverModalRoot.appItem ? (leftoverModalRoot.appItem.name || leftoverModalRoot.appItem.pkg) : "")
             color: Color.menu.text
             font.family: Style.font.family
             font.pixelSize: Style.font.heading ? Style.font.heading : 15
@@ -441,7 +441,11 @@ Rectangle {
           Text {
             id: closeText
             anchors.centerIn: parent
-            text: (leftoverModalRoot.phase === 4 || leftoverModalRoot.leftoverItems.length === 0) ? "Done" : "Skip Residuals"
+            text: {
+              if (leftoverModalRoot.phase === 4 || leftoverModalRoot.leftoverItems.length === 0) return "Done";
+              if (leftoverModalRoot.phase === 1 || leftoverModalRoot.phase === 2) return "Cancel";
+              return "Skip Residuals";
+            }
             color: Color.menu.text
             font.family: Style.font.family
             font.pixelSize: Style.space(12)
@@ -450,7 +454,10 @@ Rectangle {
           MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: leftoverModalRoot.closed()
+            onClicked: {
+              leftoverModalRoot.isOpen = false;
+              leftoverModalRoot.closed();
+            }
           }
         }
 
