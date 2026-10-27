@@ -10,7 +10,7 @@ import "script/LeftoverHunter.js" as LeftoverHunter
 import "script/Scanner.js" as Scanner
 import "script/Sorter.js" as Sorter
 
-PanelWindow {
+Item {
   id: root
 
   property var shell: null
@@ -44,323 +44,324 @@ PanelWindow {
   property string janitorPacmanCache: "Checking..."
   property string janitorYayCache: "Checking..."
 
-  // Hyprland / Wayland LayerShell Configuration
-  WlrLayershell.layer: WlrLayershell.Layer.Overlay
-  WlrLayershell.keyboardInteractivity: WlrLayershell.KeyboardInteractivity.Exclusive
-
-  anchors.top: true
-  anchors.bottom: true
-  anchors.left: true
-  anchors.right: true
-
-  color: "transparent"
-  visible: opened
-
   onOpenedChanged: {
     if (root.opened) {
       root.checkSudoStatus();
       root.refreshInventory();
       root.refreshProcessStatus();
-      header.focusSearch();
+      Qt.callLater(function() {
+        if (header) header.focusSearch();
+      });
     } else {
       root.sudoModalOpen = false;
       root.leftoverModalOpen = false;
     }
   }
 
-  // Background Dimmer
-  Rectangle {
-    anchors.fill: parent
-    color: Util.alpha("#000000", 0.55)
+  PanelWindow {
+    id: panel
+    visible: root.opened
+    anchors { top: true; bottom: true; left: true; right: true }
+    color: "transparent"
+    WlrLayershell.namespace: "omapp-manager"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    exclusionMode: ExclusionMode.Ignore
 
-    MouseArea {
+    // Background Dimmer
+    Rectangle {
       anchors.fill: parent
-      onClicked: root.opened = false
-    }
-  }
+      color: Util.alpha("#000000", 0.55)
 
-  // Central Card Container
-  Rectangle {
-    id: centerCard
-    anchors.centerIn: parent
-    width: Math.min(parent.width - Style.space(48), Style.space(1100))
-    height: Math.min(parent.height - Style.space(48), Style.space(720))
-    radius: Style.cornerRadius
-    color: Color.menu.background || "#18181b"
-    border.width: 1
-    border.color: Util.alpha(Color.menu.border, 0.45)
-
-    MouseArea {
-      anchors.fill: parent
-      onClicked: {} // Catch clicks so background click doesn't close window
+      MouseArea {
+        anchors.fill: parent
+        onClicked: root.opened = false
+      }
     }
 
-    Column {
-      anchors.fill: parent
-      anchors.margins: Style.space(18)
-      spacing: Style.space(12)
+    // Central Card Container
+    Rectangle {
+      id: centerCard
+      anchors.centerIn: parent
+      width: Math.min(parent.width - Style.space(48), Style.space(1100))
+      height: Math.min(parent.height - Style.space(48), Style.space(720))
+      radius: Style.cornerRadius
+      color: Color.menu.background || "#18181b"
+      border.width: 1
+      border.color: Util.alpha(Color.menu.border, 0.45)
 
-      // Header component
-      OmappHeader {
-        id: header
-        width: parent.width
-        filterText: root.filterText
-        activeCategory: root.activeCategory
-        activeSort: root.activeSort
-        itemCount: root.displayItems.length
-        sudoActive: root.sudoActive
-        isJanitorView: root.isJanitorView
-
-        onSearchChanged: function(text) {
-          root.filterText = text;
-          root.updateDisplayList();
-        }
-
-        onCategorySelected: function(cat) {
-          root.activeCategory = cat;
-          root.updateDisplayList();
-        }
-
-        onSortChanged: function(mode) {
-          root.activeSort = mode;
-          root.updateDisplayList();
-        }
-
-        onSudoClicked: {
-          root.sudoErrorMessage = "";
-          root.sudoModalOpen = true;
-          sudoModal.initFocus();
-        }
-
-        onJanitorToggled: {
-          root.isJanitorView = !root.isJanitorView;
-          if (root.isJanitorView) {
-            root.refreshJanitorStats();
-          }
-        }
+      MouseArea {
+        anchors.fill: parent
+        onClicked: {} // Catch clicks inside modal card
       }
 
-      // Main View Area: Apps Split View OR Janitor View
-      Item {
-        width: parent.width
-        height: parent.height - header.height - Style.space(12)
+      Column {
+        anchors.fill: parent
+        anchors.margins: Style.space(18)
+        spacing: Style.space(12)
 
-        // 1. Applications Split View (App List + Inspector)
-        Row {
-          anchors.fill: parent
-          spacing: Style.space(14)
-          visible: !root.isJanitorView
+        // Header component
+        OmappHeader {
+          id: header
+          width: parent.width
+          filterText: root.filterText
+          activeCategory: root.activeCategory
+          activeSort: root.activeSort
+          itemCount: root.displayItems.length
+          sudoActive: root.sudoActive
+          isJanitorView: root.isJanitorView
 
-          // Left Pane: Scrollable List of Apps
-          Rectangle {
-            width: parent.width * 0.58
-            height: parent.height
-            radius: Style.cornerRadius
-            color: Util.alpha(Color.menu.selectedBackground, 0.08)
-            border.width: 1
-            border.color: Util.alpha(Color.menu.border, 0.3)
-            clip: true
+          onSearchChanged: function(text) {
+            root.filterText = text;
+            root.updateDisplayList();
+          }
 
-            ListView {
-              id: appListView
-              anchors.fill: parent
-              anchors.margins: Style.space(6)
-              model: root.displayItems
-              currentIndex: root.selectedIndex
-              spacing: Style.space(4)
-              boundsBehavior: Flickable.StopAtBounds
+          onCategorySelected: function(cat) {
+            root.activeCategory = cat;
+            root.updateDisplayList();
+          }
 
-              delegate: AppGridRow {
-                isSelected: index === root.selectedIndex
-                appName: modelData.name
-                appPkg: modelData.pkg
-                appVersion: modelData.version
-                appIcon: modelData.icon
-                appCategory: modelData.category
-                appSize: modelData.sizeFormatted
-                appRunning: !!root.runningPids[modelData.pkg] || !!root.runningPids[modelData.name.toLowerCase()]
+          onSortChanged: function(mode) {
+            root.activeSort = mode;
+            root.updateDisplayList();
+          }
 
-                onClicked: {
-                  root.selectedIndex = index;
-                }
-              }
+          onSudoClicked: {
+            root.sudoErrorMessage = "";
+            root.sudoModalOpen = true;
+            sudoModal.initFocus();
+          }
 
-              // Empty list state
-              Item {
+          onJanitorToggled: {
+            root.isJanitorView = !root.isJanitorView;
+            if (root.isJanitorView) {
+              root.refreshJanitorStats();
+            }
+          }
+        }
+
+        // Main View Area: Apps Split View OR Janitor View
+        Item {
+          width: parent.width
+          height: parent.height - header.height - Style.space(12)
+
+          // 1. Applications Split View (App List + Inspector)
+          Row {
+            anchors.fill: parent
+            spacing: Style.space(14)
+            visible: !root.isJanitorView
+
+            // Left Pane: Scrollable List of Apps
+            Rectangle {
+              width: parent.width * 0.58
+              height: parent.height
+              radius: Style.cornerRadius
+              color: Util.alpha(Color.menu.selectedBackground, 0.08)
+              border.width: 1
+              border.color: Util.alpha(Color.menu.border, 0.3)
+              clip: true
+
+              ListView {
+                id: appListView
                 anchors.fill: parent
-                visible: root.displayItems.length === 0
+                anchors.margins: Style.space(6)
+                model: root.displayItems
+                currentIndex: root.selectedIndex
+                spacing: Style.space(4)
+                boundsBehavior: Flickable.StopAtBounds
 
-                Column {
-                  anchors.centerIn: parent
-                  spacing: Style.space(10)
+                delegate: AppGridRow {
+                  isSelected: index === root.selectedIndex
+                  appName: modelData.name
+                  appPkg: modelData.pkg
+                  appVersion: modelData.version
+                  appIcon: modelData.icon
+                  appCategory: modelData.category
+                  appSize: modelData.sizeFormatted
+                  appRunning: !!root.runningPids[modelData.pkg] || !!root.runningPids[modelData.name.toLowerCase()]
 
-                  Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "🔍"
-                    font.pixelSize: Style.space(32)
-                    opacity: 0.5
+                  onClicked: {
+                    root.selectedIndex = index;
                   }
+                }
 
-                  Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: "No applications found"
-                    color: Util.alpha(Color.menu.text, 0.5)
-                    font.family: Style.font.family
-                    font.pixelSize: Style.font.body ? Style.font.body : 13
+                // Empty list state
+                Item {
+                  anchors.fill: parent
+                  visible: root.displayItems.length === 0
+
+                  Column {
+                    anchors.centerIn: parent
+                    spacing: Style.space(10)
+
+                    Text {
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      text: "🔍"
+                      font.pixelSize: Style.space(32)
+                      opacity: 0.5
+                    }
+
+                    Text {
+                      anchors.horizontalCenter: parent.horizontalCenter
+                      text: "No applications found"
+                      color: Util.alpha(Color.menu.text, 0.5)
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.body ? Style.font.body : 13
+                    }
                   }
                 }
               }
             }
+
+            // Right Pane: App Inspector Drawer
+            AppInspector {
+              id: inspector
+              width: parent.width * 0.42 - Style.space(14)
+              height: parent.height
+              appItem: (root.displayItems.length > 0 && root.selectedIndex >= 0 && root.selectedIndex < root.displayItems.length)
+                ? root.displayItems[root.selectedIndex] : null
+              isRunning: appItem ? (!!root.runningPids[appItem.pkg] || !!root.runningPids[appItem.name.toLowerCase()]) : false
+              runningPid: appItem ? (root.runningPids[appItem.pkg] || root.runningPids[appItem.name.toLowerCase()] || "") : ""
+
+              onUninstallRequested: function(app) {
+                root.startDeepUninstall(app);
+              }
+
+              onKillRequested: function(app) {
+                root.killAppProcess(app);
+              }
+
+              onLaunchRequested: function(app) {
+                root.launchApp(app);
+              }
+
+              onOpenConfigRequested: function(app) {
+                root.openAppConfig(app);
+              }
+
+              onOpenUrlRequested: function(url) {
+                root.openUrl(url);
+              }
+            }
           }
 
-          // Right Pane: App Inspector Drawer
-          AppInspector {
-            id: inspector
-            width: parent.width * 0.42 - Style.space(14)
-            height: parent.height
-            appItem: (root.displayItems.length > 0 && root.selectedIndex >= 0 && root.selectedIndex < root.displayItems.length)
-              ? root.displayItems[root.selectedIndex] : null
-            isRunning: appItem ? (!!root.runningPids[appItem.pkg] || !!root.runningPids[appItem.name.toLowerCase()]) : false
-            runningPid: appItem ? (root.runningPids[appItem.pkg] || root.runningPids[appItem.name.toLowerCase()] || "") : ""
+          // 2. System Janitor View
+          SystemJanitorView {
+            anchors.fill: parent
+            visible: root.isJanitorView
+            orphanCountText: root.janitorOrphanText
+            pacmanCacheSize: root.janitorPacmanCache
+            aurCacheSize: root.janitorYayCache
 
-            onUninstallRequested: function(app) {
-              root.startDeepUninstall(app);
+            onBackClicked: root.isJanitorView = false
+
+            onCleanOrphansRequested: {
+              if (!root.sudoActive) {
+                root.sudoErrorMessage = "Sudo required to prune orphan packages";
+                root.sudoModalOpen = true;
+                return;
+              }
+              orphanPruneProc.running = true;
             }
 
-            onKillRequested: function(app) {
-              root.killAppProcess(app);
+            onCleanPacmanCacheRequested: {
+              if (!root.sudoActive) {
+                root.sudoErrorMessage = "Sudo required to trim pacman cache";
+                root.sudoModalOpen = true;
+                return;
+              }
+              pacmanCacheCleanProc.running = true;
             }
 
-            onLaunchRequested: function(app) {
-              root.launchApp(app);
-            }
-
-            onOpenConfigRequested: function(app) {
-              root.openAppConfig(app);
-            }
-
-            onOpenUrlRequested: function(url) {
-              root.openUrl(url);
+            onCleanAurCacheRequested: {
+              aurCacheCleanProc.running = true;
             }
           }
         }
+      }
 
-        // 2. System Janitor View
-        SystemJanitorView {
-          anchors.fill: parent
-          visible: root.isJanitorView
-          orphanCountText: root.janitorOrphanText
-          pacmanCacheSize: root.janitorPacmanCache
-          aurCacheSize: root.janitorYayCache
+      // Modals
+      SudoPromptModal {
+        id: sudoModal
+        isOpen: root.sudoModalOpen
+        errorMessage: root.sudoErrorMessage
 
-          onBackClicked: root.isJanitorView = false
-
-          onCleanOrphansRequested: {
-            if (!root.sudoActive) {
-              root.sudoErrorMessage = "Sudo required to prune orphan packages";
-              root.sudoModalOpen = true;
-              return;
-            }
-            orphanPruneProc.running = true;
-          }
-
-          onCleanPacmanCacheRequested: {
-            if (!root.sudoActive) {
-              root.sudoErrorMessage = "Sudo required to trim pacman cache";
-              root.sudoModalOpen = true;
-              return;
-            }
-            pacmanCacheCleanProc.running = true;
-          }
-
-          onCleanAurCacheRequested: {
-            aurCacheCleanProc.running = true;
-          }
+        onSubmitted: function(password) {
+          root.authenticateSudo(password);
         }
-      }
-    }
 
-    // Modals
-    SudoPromptModal {
-      id: sudoModal
-      isOpen: root.sudoModalOpen
-      errorMessage: root.sudoErrorMessage
-
-      onSubmitted: function(password) {
-        root.authenticateSudo(password);
-      }
-
-      onCancelled: {
-        root.sudoModalOpen = false;
-      }
-    }
-
-    LeftoverReviewModal {
-      id: leftoverModal
-      isOpen: root.leftoverModalOpen
-      appItem: root.currentUninstallApp
-      orphanListText: root.orphanList
-
-      onConfirmedPurge: function(selectedPaths) {
-        root.purgeLeftovers(selectedPaths);
-      }
-
-      onPruneOrphansRequested: {
-        orphanPruneProc.running = true;
-      }
-
-      onClosed: {
-        root.leftoverModalOpen = false;
-        root.refreshInventory();
-      }
-    }
-  }
-
-  // Global Key Handling
-  Item {
-    id: keyHandler
-    focus: true
-
-    Keys.onPressed: function(event) {
-      if (event.key === Qt.Key_Escape) {
-        if (root.sudoModalOpen) {
+        onCancelled: {
           root.sudoModalOpen = false;
-          event.accepted = true;
-        } else if (root.leftoverModalOpen) {
+        }
+      }
+
+      LeftoverReviewModal {
+        id: leftoverModal
+        isOpen: root.leftoverModalOpen
+        appItem: root.currentUninstallApp
+        orphanListText: root.orphanList
+
+        onConfirmedPurge: function(selectedPaths) {
+          root.purgeLeftovers(selectedPaths);
+        }
+
+        onPruneOrphansRequested: {
+          orphanPruneProc.running = true;
+        }
+
+        onClosed: {
           root.leftoverModalOpen = false;
           root.refreshInventory();
-          event.accepted = true;
-        } else if (root.isJanitorView) {
-          root.isJanitorView = false;
-          event.accepted = true;
-        } else {
-          root.opened = false;
-          event.accepted = true;
         }
-        return;
       }
+    }
 
-      // App navigation keys
-      if (!root.sudoModalOpen && !root.leftoverModalOpen && !root.isJanitorView) {
-        if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
-          if (root.selectedIndex < root.displayItems.length - 1) {
-            root.selectedIndex++;
-            appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+    // Global Key Handling inside Panel
+    Item {
+      id: keyHandler
+      focus: true
+
+      Keys.onPressed: function(event) {
+        if (event.key === Qt.Key_Escape) {
+          if (root.sudoModalOpen) {
+            root.sudoModalOpen = false;
+            event.accepted = true;
+          } else if (root.leftoverModalOpen) {
+            root.leftoverModalOpen = false;
+            root.refreshInventory();
+            event.accepted = true;
+          } else if (root.isJanitorView) {
+            root.isJanitorView = false;
+            event.accepted = true;
+          } else {
+            root.opened = false;
+            event.accepted = true;
           }
-          event.accepted = true;
-        } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
-          if (root.selectedIndex > 0) {
-            root.selectedIndex--;
-            appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+          return;
+        }
+
+        // App navigation keys
+        if (!root.sudoModalOpen && !root.leftoverModalOpen && !root.isJanitorView) {
+          if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
+            if (root.selectedIndex < root.displayItems.length - 1) {
+              root.selectedIndex++;
+              appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+            }
+            event.accepted = true;
+          } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
+            if (root.selectedIndex > 0) {
+              root.selectedIndex--;
+              appListView.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+            }
+            event.accepted = true;
+          } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
+            var cur = root.displayItems[root.selectedIndex];
+            if (cur) root.startDeepUninstall(cur);
+            event.accepted = true;
+          } else if (event.key === Qt.Key_Slash) {
+            header.focusSearch();
+            event.accepted = true;
           }
-          event.accepted = true;
-        } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
-          var cur = root.displayItems[root.selectedIndex];
-          if (cur) root.startDeepUninstall(cur);
-          event.accepted = true;
-        } else if (event.key === Qt.Key_Slash) {
-          header.focusSearch();
-          event.accepted = true;
         }
       }
     }
@@ -380,7 +381,7 @@ PanelWindow {
     }
     onExited: function(exitCode, exitStatus) {
       if (exitCode === 0) {
-        var items = Scanner.parseInventory(inventoryOutput.text);
+        var items = Scanner.parseInventory(inventoryOutput.text, SafeOps);
         root.rawItems = items;
         root.updateDisplayList();
       }
@@ -475,7 +476,7 @@ PanelWindow {
     property var targetApp: null
     stdout: StdioCollector { id: leftoverScanOut; waitForEnd: true }
     onExited: function(exitCode, exitStatus) {
-      var items = LeftoverHunter.parseScanOutput(leftoverScanOut.text, root.home);
+      var items = LeftoverHunter.parseScanOutput(leftoverScanOut.text, root.home, SafeOps);
       root.foundLeftovers = items;
       leftoverModal.leftoverItems = items;
       leftoverModal.updateTotalSelected();
@@ -633,7 +634,7 @@ PanelWindow {
   }
 
   function runLeftoverScan(app) {
-    var scriptObj = LeftoverHunter.buildScanScript(app, root.home);
+    var scriptObj = LeftoverHunter.buildScanScript(app, root.home, SafeOps);
     if (!scriptObj) {
       leftoverModal.phase = 3;
       return;
