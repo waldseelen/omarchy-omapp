@@ -18,21 +18,21 @@ Item {
   signal sudoClicked()
   signal janitorToggled()
 
-  height: Style.space(96)
+  height: Style.space(92)
 
   Column {
     anchors.fill: parent
-    spacing: Style.space(8)
+    spacing: Style.space(10)
 
     // Top Bar: Search Bar + Sudo Status + Janitor Button
     Row {
       width: parent.width
-      height: Style.space(42)
-      spacing: Style.space(8)
+      height: Style.space(40)
+      spacing: Style.space(10)
 
       // Search Box Container
       Rectangle {
-        width: parent.width - sudoBtn.width - janitorBtn.width - Style.space(16)
+        width: parent.width - sudoBtn.width - janitorBtn.width - Style.space(20)
         height: parent.height
         radius: Style.cornerRadius
         color: Util.alpha(Color.menu.selectedBackground, 0.15)
@@ -97,8 +97,8 @@ Item {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-              searchInput.text = ""
-              searchInput.forceActiveFocus()
+              searchInput.text = "";
+              searchInput.forceActiveFocus();
             }
           }
         }
@@ -107,7 +107,7 @@ Item {
       // Sudo Status Button
       Rectangle {
         id: sudoBtn
-        width: sudoText.implicitWidth + Style.space(20)
+        width: sudoText.implicitWidth + Style.space(24)
         height: parent.height
         radius: Style.cornerRadius
         color: headerRoot.sudoActive ? Util.alpha("#22c55e", 0.15) : Util.alpha("#ef4444", 0.15)
@@ -115,7 +115,6 @@ Item {
         border.color: headerRoot.sudoActive ? Util.alpha("#22c55e", 0.4) : Util.alpha("#ef4444", 0.4)
 
         Row {
-          id: sudoRow
           anchors.centerIn: parent
           spacing: Style.space(6)
 
@@ -144,7 +143,7 @@ Item {
       // Janitor Tab Toggle Button
       Rectangle {
         id: janitorBtn
-        width: janitorText.implicitWidth + Style.space(20)
+        width: janitorText.implicitWidth + Style.space(24)
         height: parent.height
         radius: Style.cornerRadius
         color: headerRoot.isJanitorView ? Util.alpha(Color.accent, 0.3) : Util.alpha(Color.menu.selectedBackground, 0.15)
@@ -162,7 +161,7 @@ Item {
 
           Text {
             id: janitorText
-            text: "System Janitor"
+            text: "Janitor"
             color: headerRoot.isJanitorView ? Color.accent : Color.menu.text
             font.family: Style.font.family
             font.pixelSize: Style.space(11)
@@ -178,100 +177,109 @@ Item {
       }
     }
 
-    // Bottom Filter Bar: Category Pills + Sort Selector + Item Count
-    Row {
+    // Bottom Filter Bar: Category Pills (Left) + Sort & Count (Right)
+    Item {
       width: parent.width
-      height: Style.space(34)
-      spacing: Style.space(6)
+      height: Style.space(32)
 
-      // Category Pills
-      Repeater {
-        model: [
-          { id: "all", label: "All" },
-          { id: "desktop", label: "Desktop" },
-          { id: "system", label: "System / CLI" },
-          { id: "aur", label: "AUR" },
-          { id: "webapp", label: "Web Apps" },
-          { id: "large", label: "Large (>100M)" }
-        ]
+      // Left-aligned Category Pills
+      Row {
+        id: categoryRow
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(6)
 
+        Repeater {
+          model: [
+            { id: "all", label: "All" },
+            { id: "desktop", label: "Desktop" },
+            { id: "system", label: "System / CLI" },
+            { id: "aur", label: "AUR" },
+            { id: "webapp", label: "Web Apps" },
+            { id: "large", label: "Large" }
+          ]
+
+          Rectangle {
+            property bool isActive: headerRoot.activeCategory === modelData.id
+            height: Style.space(26)
+            width: pillText.implicitWidth + Style.space(16)
+            radius: Style.space(6)
+            color: isActive ? Color.accent : (pillMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.3) : Util.alpha(Color.menu.selectedBackground, 0.1))
+            border.width: 1
+            border.color: isActive ? Color.accent : Util.alpha(Color.menu.border, 0.3)
+
+            Text {
+              id: pillText
+              anchors.centerIn: parent
+              text: modelData.label
+              color: parent.isActive ? (Color.menu.background || "#18181b") : Color.menu.text
+              font.family: Style.font.family
+              font.pixelSize: Style.space(11)
+              font.weight: parent.isActive ? Font.Bold : Font.Normal
+            }
+
+            MouseArea {
+              id: pillMouse
+              anchors.fill: parent
+              cursorShape: Qt.PointingHandCursor
+              hoverEnabled: true
+              onClicked: headerRoot.categorySelected(modelData.id)
+            }
+          }
+        }
+      }
+
+      // Right-aligned Sort & Item Count
+      Row {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(12)
+
+        // Sort Mode Toggle
         Rectangle {
-          property bool isActive: headerRoot.activeCategory === modelData.id
-          height: Style.space(28)
-          width: pillText.implicitWidth + Style.space(16)
+          height: Style.space(26)
+          width: sortText.implicitWidth + Style.space(16)
           radius: Style.space(6)
-          color: isActive ? Color.accent : (pillMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.3) : Util.alpha(Color.menu.selectedBackground, 0.1))
+          color: Util.alpha(Color.menu.selectedBackground, 0.15)
           border.width: 1
-          border.color: isActive ? Color.accent : Util.alpha(Color.menu.border, 0.3)
+          border.color: Util.alpha(Color.menu.border, 0.3)
 
           Text {
-            id: pillText
+            id: sortText
             anchors.centerIn: parent
-            text: modelData.label
-            color: parent.isActive ? (Color.menu.selectedText || "#000000") : Color.menu.text
+            text: {
+              if (headerRoot.activeSort === "size") return "Sort: Size ▾";
+              if (headerRoot.activeSort === "name") return "Sort: Name ▾";
+              if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
+              return "Sort: Build Date ▾";
+            }
+            color: Util.alpha(Color.menu.text, 0.85)
             font.family: Style.font.family
             font.pixelSize: Style.space(11)
-            font.weight: parent.isActive ? Font.Bold : Font.Normal
+            font.weight: Font.Medium
           }
 
           MouseArea {
-            id: pillMouse
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            hoverEnabled: true
-            onClicked: headerRoot.categorySelected(modelData.id)
+            onClicked: {
+              var modes = ["size", "name", "date", "update"];
+              var idx = modes.indexOf(headerRoot.activeSort);
+              var next = modes[(idx + 1) % modes.length];
+              headerRoot.sortChanged(next);
+            }
           }
         }
-      }
 
-      Item { width: Style.space(10); height: 1 } // Spacer
-
-      // Sort Mode Toggle
-      Rectangle {
-        height: Style.space(28)
-        width: sortText.implicitWidth + Style.space(16)
-        radius: Style.space(6)
-        color: Util.alpha(Color.menu.selectedBackground, 0.15)
-        border.width: 1
-        border.color: Util.alpha(Color.menu.border, 0.3)
-
+        // Item Count
         Text {
-          id: sortText
-          anchors.centerIn: parent
-          text: {
-            if (headerRoot.activeSort === "size") return "Sort: Size ▾";
-            if (headerRoot.activeSort === "name") return "Sort: Name ▾";
-            if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
-            return "Sort: Build Date ▾";
-          }
-          color: Util.alpha(Color.menu.text, 0.85)
+          id: countText
+          anchors.verticalCenter: parent.verticalCenter
+          text: headerRoot.itemCount + " apps"
+          color: Util.alpha(Color.menu.text, 0.5)
           font.family: Style.font.family
           font.pixelSize: Style.space(11)
-          font.weight: Font.Medium
         }
-
-        MouseArea {
-          anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          onClicked: {
-            var modes = ["size", "name", "date", "update"];
-            var idx = modes.indexOf(headerRoot.activeSort);
-            var next = modes[(idx + 1) % modes.length];
-            headerRoot.sortChanged(next);
-          }
-        }
-      }
-
-      Item { width: parent.width - x - countText.implicitWidth - Style.space(12); height: 1 }
-
-      // Item Count
-      Text {
-        id: countText
-        anchors.verticalCenter: parent.verticalCenter
-        text: headerRoot.itemCount + " applications"
-        color: Util.alpha(Color.menu.text, 0.5)
-        font.family: Style.font.family
-        font.pixelSize: Style.space(11)
       }
     }
   }

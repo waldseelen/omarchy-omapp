@@ -44,6 +44,33 @@ Item {
   property string janitorPacmanCache: "Checking..."
   property string janitorYayCache: "Checking..."
 
+  function open(payloadJson) {
+    root.opened = true;
+    if (root.shell && root.shell.appLibrary && typeof root.shell.appLibrary.refreshIcons === "function") {
+      root.shell.appLibrary.refreshIcons();
+    }
+    root.checkSudoStatus();
+    root.refreshInventory();
+    root.refreshProcessStatus();
+    Qt.callLater(function() {
+      if (header) header.focusSearch();
+    });
+  }
+
+  function close() {
+    root.opened = false;
+    root.sudoModalOpen = false;
+    root.leftoverModalOpen = false;
+  }
+
+  function toggle() {
+    if (root.opened) {
+      close();
+    } else {
+      open();
+    }
+  }
+
   onOpenedChanged: {
     if (root.opened) {
       root.checkSudoStatus();
@@ -171,6 +198,7 @@ Item {
                 boundsBehavior: Flickable.StopAtBounds
 
                 delegate: AppGridRow {
+                  shell: root.shell
                   isSelected: index === root.selectedIndex
                   appName: modelData.name
                   appPkg: modelData.pkg
@@ -216,6 +244,7 @@ Item {
             // Right Pane: App Inspector Drawer
             AppInspector {
               id: inspector
+              shell: root.shell
               width: parent.width * 0.42 - Style.space(14)
               height: parent.height
               appItem: (root.displayItems.length > 0 && root.selectedIndex >= 0 && root.selectedIndex < root.displayItems.length)

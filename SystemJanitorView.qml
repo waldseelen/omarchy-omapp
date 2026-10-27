@@ -26,33 +26,39 @@ Rectangle {
     spacing: Style.space(20)
 
     // Header
-    Row {
+    Item {
       width: parent.width
-      spacing: Style.space(12)
+      height: Style.space(36)
 
-      Text { text: "🧹"; font.pixelSize: Style.space(26); anchors.verticalCenter: parent.verticalCenter }
+      Row {
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(12)
 
-      Column {
-        spacing: Style.space(2)
-        Text {
-          text: "System Janitor & Storage Reclamation"
-          color: Color.menu.text
-          font.family: Style.font.family
-          font.pixelSize: Style.font.heading ? Style.font.heading : 16
-          font.weight: Font.Bold
-        }
-        Text {
-          text: "Clean unneeded packages, build artifacts, and package caches with 1 click"
-          color: Util.alpha(Color.menu.text, 0.6)
-          font.family: Style.font.family
-          font.pixelSize: Style.space(11)
+        Text { text: "🧹"; font.pixelSize: Style.space(26); anchors.verticalCenter: parent.verticalCenter }
+
+        Column {
+          spacing: Style.space(2)
+          Text {
+            text: "System Janitor & Storage Reclamation"
+            color: Color.menu.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.heading ? Style.font.heading : 16
+            font.weight: Font.Bold
+          }
+          Text {
+            text: "Clean unneeded packages, build artifacts, and package caches with 1 click"
+            color: Util.alpha(Color.menu.text, 0.6)
+            font.family: Style.font.family
+            font.pixelSize: Style.space(11)
+          }
         }
       }
 
-      Item { width: parent.width - x - backBtn.width; height: 1 }
-
       Rectangle {
         id: backBtn
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
         height: Style.space(32)
         width: backText.implicitWidth + Style.space(20)
         radius: Style.space(6)

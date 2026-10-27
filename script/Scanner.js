@@ -146,9 +146,16 @@ function parseInventory(rawOutput, safeHelper) {
     var matchedPkg = null;
     var candidates = [
       binName,
+      binName + "-bin",
+      binName + "-git",
       dt.fileName.replace(/\.desktop$/i, ""),
+      dt.fileName.replace(/\.desktop$/i, "") + "-bin",
+      dt.fileName.replace(/\.desktop$/i, "") + "-git",
       dt.name.toLowerCase().replace(/\s+/g, "-"),
-      dt.name.toLowerCase().replace(/\s+/g, "")
+      dt.name.toLowerCase().replace(/\s+/g, "-") + "-bin",
+      dt.name.toLowerCase().replace(/\s+/g, "-") + "-git",
+      dt.name.toLowerCase().replace(/\s+/g, ""),
+      dt.name.toLowerCase().replace(/\s+/g, "") + "-bin"
     ];
 
     for (var c = 0; c < candidates.length; c++) {

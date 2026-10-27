@@ -9,6 +9,7 @@ Rectangle {
   property var appItem: null
   property bool isRunning: false
   property string runningPid: ""
+  property var shell: null
 
   signal uninstallRequested(var app)
   signal killRequested(var app)
@@ -20,8 +21,34 @@ Rectangle {
   color: Util.alpha(Color.menu.selectedBackground, 0.12)
   border.width: 1
   border.color: Util.alpha(Color.menu.border, 0.3)
-
   clip: true
+
+  function resolveIconSource(iconName) {
+    if (!iconName || iconName.length === 0) {
+      return Quickshell.iconPath("application-x-executable", true);
+    }
+    if (iconName.indexOf("/") === 0) {
+      return Util.fileUrl(iconName);
+    }
+    if (iconName.indexOf("file://") === 0 || iconName.indexOf("image://") === 0) {
+      return iconName;
+    }
+    var cleanName = iconName;
+    if (cleanName.slice(-4) === ".png" || cleanName.slice(-4) === ".svg") {
+      cleanName = cleanName.slice(0, -4);
+    }
+    if (inspectorRoot.shell && inspectorRoot.shell.appLibrary && typeof inspectorRoot.shell.appLibrary.iconSource === "function") {
+      var src = inspectorRoot.shell.appLibrary.iconSource(cleanName);
+      if (src && src.length > 0) return src;
+      var srcRaw = inspectorRoot.shell.appLibrary.iconSource(iconName);
+      if (srcRaw && srcRaw.length > 0) return srcRaw;
+    }
+    var p = Quickshell.iconPath(cleanName, true);
+    if (p && p.length > 0) return p;
+    var p2 = Quickshell.iconPath(iconName, true);
+    if (p2 && p2.length > 0) return p2;
+    return Quickshell.iconPath("application-x-executable", true);
+  }
 
   // Empty State
   Item {
@@ -52,7 +79,7 @@ Rectangle {
   // Active Inspector Content
   Flickable {
     anchors.fill: parent
-    anchors.margins: Style.space(16)
+    anchors.margins: Style.space(14)
     visible: !!inspectorRoot.appItem
     contentHeight: contentCol.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
@@ -60,36 +87,59 @@ Rectangle {
     Column {
       id: contentCol
       width: parent.width
-      spacing: Style.space(14)
+      spacing: Style.space(12)
 
       // Header: App Icon + Titles
       Row {
         width: parent.width
-        spacing: Style.space(14)
+        spacing: Style.space(12)
 
-        Image {
-          width: Style.space(52)
-          height: Style.space(52)
-          fillMode: Image.PreserveAspectFit
-          source: {
-            if (!inspectorRoot.appItem) return "";
-            var icon = inspectorRoot.appItem.icon || "application-x-executable";
-            if (icon.indexOf("/") === 0) return Util.fileUrl(icon);
-            var p = Quickshell.iconPath(icon, true);
-            return p ? p : Quickshell.iconPath("application-x-executable", true);
+        Item {
+          width: Style.space(48)
+          height: Style.space(48)
+
+          Rectangle {
+            anchors.fill: parent
+            radius: Style.space(8)
+            color: Util.alpha(Color.menu.selectedBackground, 0.3)
+            visible: inspectorIconImg.status !== Image.Ready
+
+            Text {
+              anchors.centerIn: parent
+              text: {
+                if (!inspectorRoot.appItem) return "📦";
+                if (inspectorRoot.appItem.category === "aur") return "⚡";
+                if (inspectorRoot.appItem.category === "webapp") return "🌐";
+                if (inspectorRoot.appItem.category === "system") return "⚙️";
+                return "📦";
+              }
+              font.pixelSize: Style.space(22)
+            }
+          }
+
+          Image {
+            id: inspectorIconImg
+            anchors.fill: parent
+            sourceSize.width: Style.space(48) * Screen.devicePixelRatio
+            sourceSize.height: Style.space(48) * Screen.devicePixelRatio
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            source: inspectorRoot.resolveIconSource(inspectorRoot.appItem ? inspectorRoot.appItem.icon : "")
+            visible: status === Image.Ready
           }
         }
 
         Column {
-          width: parent.width - Style.space(66)
+          width: parent.width - Style.space(60)
           spacing: Style.space(3)
+          clip: true
 
           Text {
             width: parent.width
             text: inspectorRoot.appItem ? (inspectorRoot.appItem.name || inspectorRoot.appItem.pkg) : ""
             color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.heading ? Style.font.heading : 16
+            font.pixelSize: Style.font.heading ? Style.font.heading : 15
             font.weight: Font.Bold
             elide: Text.ElideRight
           }
@@ -109,8 +159,8 @@ Rectangle {
 
             Rectangle {
               anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(8)
-              height: Style.space(8)
+              width: Style.space(7)
+              height: Style.space(7)
               radius: width / 2
               color: inspectorRoot.isRunning ? "#4ade80" : Util.alpha(Color.menu.text, 0.3)
             }
@@ -119,20 +169,20 @@ Rectangle {
               text: inspectorRoot.isRunning ? ("Running" + (inspectorRoot.runningPid ? " (PID " + inspectorRoot.runningPid + ")" : "")) : "Stopped"
               color: inspectorRoot.isRunning ? "#86efac" : Util.alpha(Color.menu.text, 0.5)
               font.family: Style.font.family
-              font.pixelSize: Style.space(11)
+              font.pixelSize: Style.space(10)
             }
           }
         }
       }
 
-      // Action Buttons Row
-      Row {
+      // Action Buttons Flow (Automatically wraps onto next line without clipping!)
+      Flow {
         width: parent.width
         spacing: Style.space(8)
 
         // Deep Uninstall Button (Primary Action)
         Rectangle {
-          height: Style.space(32)
+          height: Style.space(30)
           width: unText.implicitWidth + Style.space(20)
           radius: Style.space(6)
           color: Util.alpha("#ef4444", 0.25)
@@ -141,9 +191,9 @@ Rectangle {
 
           Row {
             anchors.centerIn: parent
-            spacing: Style.space(6)
+            spacing: Style.space(5)
 
-            Text { text: "🗑️"; font.pixelSize: Style.space(12) }
+            Text { text: "🗑️"; font.pixelSize: Style.space(11) }
             Text {
               id: unText
               text: "Deep Uninstall"
@@ -166,8 +216,8 @@ Rectangle {
         // Kill Process Button (Visible when running)
         Rectangle {
           visible: inspectorRoot.isRunning
-          height: Style.space(32)
-          width: killText.implicitWidth + Style.space(20)
+          height: Style.space(30)
+          width: killText.implicitWidth + Style.space(18)
           radius: Style.space(6)
           color: Util.alpha("#f97316", 0.2)
           border.width: 1
@@ -175,9 +225,9 @@ Rectangle {
 
           Row {
             anchors.centerIn: parent
-            spacing: Style.space(6)
+            spacing: Style.space(5)
 
-            Text { text: "⚡"; font.pixelSize: Style.space(12) }
+            Text { text: "⚡"; font.pixelSize: Style.space(11) }
             Text {
               id: killText
               text: "Kill Process"
@@ -198,8 +248,8 @@ Rectangle {
         // Launch App Button
         Rectangle {
           visible: inspectorRoot.appItem ? inspectorRoot.appItem.isDesktop : false
-          height: Style.space(32)
-          width: launchText.implicitWidth + Style.space(20)
+          height: Style.space(30)
+          width: launchText.implicitWidth + Style.space(18)
           radius: Style.space(6)
           color: Util.alpha(Color.accent, 0.2)
           border.width: 1
@@ -207,9 +257,9 @@ Rectangle {
 
           Row {
             anchors.centerIn: parent
-            spacing: Style.space(6)
+            spacing: Style.space(5)
 
-            Text { text: "🚀"; font.pixelSize: Style.space(12) }
+            Text { text: "🚀"; font.pixelSize: Style.space(11) }
             Text {
               id: launchText
               text: "Launch"
@@ -229,8 +279,8 @@ Rectangle {
 
         // Open Config Folder Button
         Rectangle {
-          height: Style.space(32)
-          width: cfgText.implicitWidth + Style.space(18)
+          height: Style.space(30)
+          width: cfgText.implicitWidth + Style.space(16)
           radius: Style.space(6)
           color: Util.alpha(Color.menu.selectedBackground, 0.2)
           border.width: 1
@@ -238,9 +288,9 @@ Rectangle {
 
           Row {
             anchors.centerIn: parent
-            spacing: Style.space(6)
+            spacing: Style.space(5)
 
-            Text { text: "📁"; font.pixelSize: Style.space(12) }
+            Text { text: "📁"; font.pixelSize: Style.space(11) }
             Text {
               id: cfgText
               text: "Config"
@@ -258,11 +308,11 @@ Rectangle {
         }
       }
 
-      // Required By Dependency Warning Badge (Crucial Safety Feature)
+      // Required By Dependency Warning Badge
       Rectangle {
         visible: inspectorRoot.appItem && inspectorRoot.appItem.requiredBy && inspectorRoot.appItem.requiredBy !== "None"
         width: parent.width
-        height: reqCol.implicitHeight + Style.space(16)
+        height: reqCol.implicitHeight + Style.space(14)
         radius: Style.space(6)
         color: Util.alpha("#f59e0b", 0.15)
         border.width: 1
@@ -272,11 +322,11 @@ Rectangle {
           id: reqCol
           anchors.fill: parent
           anchors.margins: Style.space(8)
-          spacing: Style.space(4)
+          spacing: Style.space(3)
 
           Row {
             spacing: Style.space(6)
-            Text { text: "⚠️"; font.pixelSize: Style.space(12) }
+            Text { text: "⚠️"; font.pixelSize: Style.space(11) }
             Text {
               text: "Other packages depend on this!"
               color: "#fcd34d"
@@ -301,9 +351,9 @@ Rectangle {
       Text {
         width: parent.width
         text: inspectorRoot.appItem ? inspectorRoot.appItem.description : ""
-        color: Util.alpha(Color.menu.text, 0.8)
+        color: Util.alpha(Color.menu.text, 0.75)
         font.family: Style.font.family
-        font.pixelSize: Style.space(12)
+        font.pixelSize: Style.space(11)
         wrapMode: Text.Wrap
       }
 
@@ -314,58 +364,76 @@ Rectangle {
         color: Util.alpha(Color.menu.border, 0.25)
       }
 
-      // Metadata Table (Size, Install Date, License, etc.)
-      Grid {
+      // Metadata Table (Strictly bounded 2-column layout)
+      Column {
         width: parent.width
-        columns: 2
-        columnSpacing: Style.space(12)
-        rowSpacing: Style.space(8)
+        spacing: Style.space(6)
 
-        Text { text: "Installed Size:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-        Text {
-          text: inspectorRoot.appItem ? inspectorRoot.appItem.sizeFormatted : "-"
-          color: Color.menu.text
-          font.pixelSize: Style.space(11)
-          font.weight: Font.DemiBold
+        Row {
+          width: parent.width
+          Text { width: Style.space(90); text: "Size:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+          Text {
+            width: parent.width - Style.space(90)
+            text: inspectorRoot.appItem ? inspectorRoot.appItem.sizeFormatted : "-"
+            color: Color.menu.text
+            font.pixelSize: Style.space(11)
+            font.weight: Font.DemiBold
+          }
         }
 
-        Text { text: "Install Date:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-        Text {
-          text: inspectorRoot.appItem && inspectorRoot.appItem.installDate ? inspectorRoot.appItem.installDate : "Unknown"
-          color: Color.menu.text
-          font.pixelSize: Style.space(11)
-          elide: Text.ElideRight
+        Row {
+          width: parent.width
+          Text { width: Style.space(90); text: "Install Date:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+          Text {
+            width: parent.width - Style.space(90)
+            text: inspectorRoot.appItem && inspectorRoot.appItem.installDate ? inspectorRoot.appItem.installDate : "Unknown"
+            color: Color.menu.text
+            font.pixelSize: Style.space(11)
+            elide: Text.ElideRight
+          }
         }
 
-        Text { text: "License:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-        Text {
-          text: inspectorRoot.appItem && inspectorRoot.appItem.licenses ? inspectorRoot.appItem.licenses : "Custom"
-          color: Color.menu.text
-          font.pixelSize: Style.space(11)
-          elide: Text.ElideRight
+        Row {
+          width: parent.width
+          Text { width: Style.space(90); text: "License:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+          Text {
+            width: parent.width - Style.space(90)
+            text: inspectorRoot.appItem && inspectorRoot.appItem.licenses ? inspectorRoot.appItem.licenses : "Custom"
+            color: Color.menu.text
+            font.pixelSize: Style.space(11)
+            elide: Text.ElideRight
+          }
         }
 
-        Text { text: "Packager:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-        Text {
-          text: inspectorRoot.appItem && inspectorRoot.appItem.packager ? inspectorRoot.appItem.packager : "Local"
-          color: Color.menu.text
-          font.pixelSize: Style.space(11)
-          elide: Text.ElideRight
+        Row {
+          width: parent.width
+          Text { width: Style.space(90); text: "Packager:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+          Text {
+            width: parent.width - Style.space(90)
+            text: inspectorRoot.appItem && inspectorRoot.appItem.packager ? inspectorRoot.appItem.packager : "Local"
+            color: Color.menu.text
+            font.pixelSize: Style.space(11)
+            elide: Text.ElideRight
+          }
         }
 
-        Text { text: "Executable:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-        Text {
-          text: inspectorRoot.appItem && inspectorRoot.appItem.exec ? inspectorRoot.appItem.exec : "-"
-          color: Color.menu.text
-          font.pixelSize: Style.space(11)
-          elide: Text.ElideMiddle
+        Row {
+          width: parent.width
+          Text { width: Style.space(90); text: "Binary:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+          Text {
+            width: parent.width - Style.space(90)
+            text: inspectorRoot.appItem && inspectorRoot.appItem.exec ? inspectorRoot.appItem.exec : "-"
+            color: Color.menu.text
+            font.pixelSize: Style.space(11)
+            elide: Text.ElideMiddle
+          }
         }
       }
 
       // Website Link
       Rectangle {
         visible: inspectorRoot.appItem && !!inspectorRoot.appItem.url
-        height: Style.space(26)
+        height: Style.space(24)
         width: parent.width
         radius: Style.space(4)
         color: urlMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.3) : "transparent"
@@ -376,6 +444,7 @@ Rectangle {
 
           Text { text: "🌐"; font.pixelSize: Style.space(11) }
           Text {
+            width: contentCol.width - Style.space(24)
             text: inspectorRoot.appItem ? inspectorRoot.appItem.url : ""
             color: Color.accent
             font.family: Style.font.family

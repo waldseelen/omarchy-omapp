@@ -121,12 +121,14 @@ Rectangle {
           spacing: Style.space(10)
 
           // Subheader: Total Size Reclaimed + Select All / Deselect All
-          Row {
+          Item {
             width: parent.width
             height: Style.space(28)
 
             // Reclaim badge
             Rectangle {
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
               height: parent.height
               width: reclaimText.implicitWidth + Style.space(16)
               radius: Style.space(4)
@@ -145,10 +147,10 @@ Rectangle {
               }
             }
 
-            Item { width: parent.width - x - actionsRow.width; height: 1 }
-
             Row {
               id: actionsRow
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
               spacing: Style.space(8)
 
               Text {
@@ -211,14 +213,15 @@ Rectangle {
                 radius: Style.space(4)
                 color: modelData.selected ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
 
-                Row {
+                Item {
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(8)
                   anchors.rightMargin: Style.space(8)
-                  spacing: Style.space(10)
 
                   // Checkbox
                   Rectangle {
+                    id: checkRect
+                    anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     width: Style.space(16)
                     height: Style.space(16)
@@ -239,6 +242,9 @@ Rectangle {
 
                   // Category Badge
                   Rectangle {
+                    id: tagBadge
+                    anchors.left: checkRect.right
+                    anchors.leftMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
                     height: Style.space(18)
                     width: tagLabel.implicitWidth + Style.space(8)
@@ -255,24 +261,29 @@ Rectangle {
                     }
                   }
 
-                  // Relative Path
+                  // Size (Right-anchored)
                   Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - Style.space(150)
-                    text: "~/" + modelData.relative
-                    color: Color.menu.text
-                    font.family: Style.font.family
-                    font.pixelSize: Style.space(11)
-                    elide: Text.ElideMiddle
-                  }
-
-                  // Size
-                  Text {
+                    id: sizeLabel
+                    anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     text: modelData.sizeFormatted
                     color: Util.alpha(Color.menu.text, 0.7)
                     font.pixelSize: Style.space(11)
                     font.weight: Font.DemiBold
+                  }
+
+                  // Relative Path (Bounded between tagBadge and sizeLabel)
+                  Text {
+                    anchors.left: tagBadge.right
+                    anchors.leftMargin: Style.space(10)
+                    anchors.right: sizeLabel.left
+                    anchors.rightMargin: Style.space(10)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "~/" + modelData.relative
+                    color: Color.menu.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.space(11)
+                    elide: Text.ElideMiddle
                   }
                 }
 

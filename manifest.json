@@ -7,9 +7,10 @@
   "description": "App Manager & Revo-style deep uninstaller for Omarchy. Track versions, updates, disk usage, and purge leftovers.",
   "license": "MIT",
   "repository": "https://github.com/waldseelen/omarchy-omapp",
-  "kinds": ["overlay"],
+  "kinds": ["overlay", "menu"],
   "keepLoaded": true,
   "entryPoints": {
-    "overlay": "Omapp.qml"
+    "overlay": "Omapp.qml",
+    "menu": "Omapp.qml"
   }
 }
