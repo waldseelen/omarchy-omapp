@@ -316,8 +316,9 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(12)
 
-        // Sort Mode Toggle
+        // Sort Mode Toggle (Only shown in Apps tab — Tasks tab sorts via column headers)
         Rectangle {
+          visible: headerRoot.activeTab === "apps"
           height: Style.space(26)
           width: sortText.implicitWidth + Style.space(16)
           radius: Style.space(6)
@@ -329,17 +330,10 @@ Item {
             id: sortText
             anchors.centerIn: parent
             text: {
-              if (headerRoot.activeTab === "tasks") {
-                if (headerRoot.activeSort === "cpu") return "Sort: CPU % ▾";
-                if (headerRoot.activeSort === "mem" || headerRoot.activeSort === "ram") return "Sort: RAM (RSS) ▾";
-                if (headerRoot.activeSort === "pid") return "Sort: PID ▾";
-                return "Sort: Name ▾";
-              } else {
-                if (headerRoot.activeSort === "size") return "Sort: Size ▾";
-                if (headerRoot.activeSort === "name") return "Sort: Name ▾";
-                if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
-                return "Sort: Build Date ▾";
-              }
+              if (headerRoot.activeSort === "size") return "Sort: Size ▾";
+              if (headerRoot.activeSort === "name") return "Sort: Name ▾";
+              if (headerRoot.activeSort === "date") return "Sort: Install Date ▾";
+              return "Sort: Build Date ▾";
             }
             color: Util.alpha(Color.menu.text, 0.85)
             font.family: Style.font.family
@@ -351,17 +345,10 @@ Item {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-              if (headerRoot.activeTab === "tasks") {
-                var taskModes = ["cpu", "mem", "pid", "name"];
-                var tIdx = taskModes.indexOf(headerRoot.activeSort);
-                var tNext = taskModes[(tIdx + 1) % taskModes.length];
-                headerRoot.sortChanged(tNext);
-              } else {
-                var modes = ["size", "name", "date", "update"];
-                var idx = modes.indexOf(headerRoot.activeSort);
-                var next = modes[(idx + 1) % modes.length];
-                headerRoot.sortChanged(next);
-              }
+              var modes = ["size", "name", "date", "update"];
+              var idx = modes.indexOf(headerRoot.activeSort);
+              var next = modes[(idx + 1) % modes.length];
+              headerRoot.sortChanged(next);
             }
           }
         }

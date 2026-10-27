@@ -6,11 +6,15 @@ console.log("Testing TaskManager...");
 
 // 1. Process output parsing
 const samplePsOutput = [
+  "===PS_START===",
   "   1017 hp        9.1  9.4 1476544 MainThread",
   "  13336 hp        4.5  2.2  345888 brave",
   "   3778 root      4.1  3.5  548760 systemd-journal",
   "      1 root      0.0  0.1   12000 systemd",
-  ""
+  "===PS_END===",
+  "===GPU_START===",
+  "13336, 120",
+  "===GPU_END==="
 ].join("\n");
 
 const tasks = TaskManager.parseProcessOutput(samplePsOutput, "hp");
@@ -21,6 +25,11 @@ assert.strictEqual(tasks[0].user, "hp");
 assert.strictEqual(tasks[0].cpu, 9.1);
 assert.strictEqual(tasks[0].isMine, true);
 assert.strictEqual(tasks[2].isMine, false);
+
+// Check GPU mapping
+assert.strictEqual(tasks[1].pid, 13336);
+assert.strictEqual(tasks[1].gpu, 120);
+assert.strictEqual(tasks[1].gpuFormatted, "120 MiB");
 
 // 2. Filter tasks
 const userTasks = TaskManager.filterTasks(tasks, "", "user", "hp");
@@ -33,6 +42,9 @@ assert.strictEqual(braveTasks[0].pid, 13336);
 // 3. Sort tasks
 const sortedByMem = TaskManager.sortTasks(tasks, "mem", "desc");
 assert.strictEqual(sortedByMem[0].pid, 1017, "Highest memory should be first");
+
+const sortedByGpu = TaskManager.sortTasks(tasks, "gpu", "desc");
+assert.strictEqual(sortedByGpu[0].pid, 13336, "Highest GPU memory should be first");
 
 // 4. Kill command generation
 const killTerm = TaskManager.buildKillCommand(13336, false, false);

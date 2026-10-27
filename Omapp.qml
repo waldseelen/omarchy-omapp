@@ -37,6 +37,7 @@ Item {
   property int selectedTaskIndex: 0
   property string taskCategory: "all"
   property string taskSort: "cpu"
+  property string taskSortDirection: "desc"
   property string taskFilterText: ""
 
   // Sudo & Process State
@@ -329,6 +330,7 @@ Item {
 
           // 2. Task Manager View (Live Process Manager)
           TaskManagerView {
+            id: taskView
             anchors.fill: parent
             visible: root.activeTab === "tasks"
             shell: root.shell
@@ -336,8 +338,15 @@ Item {
             selectedIndex: root.selectedTaskIndex
             activeCategory: root.taskCategory
             activeSort: root.taskSort
+            sortDirection: root.taskSortDirection
             filterText: root.taskFilterText
             sudoActive: root.sudoActive
+
+            onSortRequested: function(mode, direction) {
+              root.taskSort = mode;
+              root.taskSortDirection = direction;
+              root.updateTaskDisplayList();
+            }
 
             onKillRequested: function(pid, force) {
               root.killTask(pid, force);
@@ -619,7 +628,10 @@ Item {
     interval: 2000
     repeat: true
     running: root.opened && root.activeTab === "tasks"
-    onTriggered: root.refreshTasks()
+    onTriggered: {
+      if (taskView && taskView.isUserScrolling()) return;
+      root.refreshTasks();
+    }
   }
 
   // 7. Package Uninstall Process
@@ -787,7 +799,7 @@ Item {
   function updateTaskDisplayList() {
     var user = Quickshell.env("USER") || "";
     var filtered = TaskManager.filterTasks(root.rawTasks, root.taskFilterText, root.taskCategory, user);
-    var sorted = TaskManager.sortTasks(filtered, root.taskSort, "desc");
+    var sorted = TaskManager.sortTasks(filtered, root.taskSort, root.taskSortDirection);
     root.displayTasks = sorted;
     if (root.selectedTaskIndex >= sorted.length) {
       root.selectedTaskIndex = Math.max(0, sorted.length - 1);

@@ -1,7 +1,15 @@
 // TaskManager.js — Process monitoring, task termination, and executable locator for OMAPP
 
 function buildProcessScanScript() {
-  var script = 'ps -eo pid,user,%cpu,%mem,rss,comm --no-headers --sort=-%cpu 2>/dev/null';
+  var script = [
+    'echo "===PS_START==="',
+    'ps -eo pid,user,%cpu,%mem,rss,comm --no-headers --sort=-%cpu 2>/dev/null',
+    'echo "===PS_END==="',
+    'echo "===GPU_START==="',
+    'nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null || true',
+    'echo "===GPU_END==="'
+  ].join("\n");
+
   return ["bash", "-c", script];
 }
 
@@ -17,7 +25,38 @@ function formatBytes(bytes) {
 
 function parseProcessOutput(rawText, currentUser) {
   if (!rawText || typeof rawText !== "string") return [];
-  var lines = rawText.split("\n");
+
+  var psStart = rawText.indexOf("===PS_START===");
+  var psEnd = rawText.indexOf("===PS_END===");
+  var gpuStart = rawText.indexOf("===GPU_START===");
+  var gpuEnd = rawText.indexOf("===GPU_END===");
+
+  // 1. Parse GPU memory if present
+  var gpuDict = {};
+  if (gpuStart !== -1 && gpuEnd !== -1) {
+    var gpuBlock = rawText.slice(gpuStart + 15, gpuEnd).trim();
+    if (gpuBlock) {
+      var gLines = gpuBlock.split("\n");
+      for (var g = 0; g < gLines.length; g++) {
+        var gLine = gLines[g].trim();
+        if (!gLine) continue;
+        var gParts = gLine.split(",");
+        if (gParts.length >= 2) {
+          var gPid = parseInt(gParts[0].trim(), 10);
+          var gMem = parseInt(gParts[1].trim(), 10) || 0;
+          if (gPid > 0) gpuDict[gPid] = gMem;
+        }
+      }
+    }
+  }
+
+  // 2. Parse PS block
+  var psText = rawText;
+  if (psStart !== -1 && psEnd !== -1) {
+    psText = rawText.slice(psStart + 15, psEnd);
+  }
+
+  var lines = psText.split("\n");
   var tasks = [];
 
   for (var i = 0; i < lines.length; i++) {
@@ -40,6 +79,7 @@ function parseProcessOutput(rawText, currentUser) {
     var rssBytes = rssKiB * 1024;
     var rssFormatted = formatBytes(rssBytes);
     var isMine = currentUser ? (user === currentUser) : true;
+    var gpuMem = gpuDict[pid] || 0;
 
     tasks.push({
       pid: pid,
@@ -50,6 +90,8 @@ function parseProcessOutput(rawText, currentUser) {
       memFormatted: mem.toFixed(1) + "%",
       rss: rssBytes,
       rssFormatted: rssFormatted,
+      gpu: gpuMem,
+      gpuFormatted: gpuMem > 0 ? (gpuMem + " MiB") : "-",
       name: comm,
       isMine: isMine
     });
@@ -72,6 +114,8 @@ function filterTasks(tasks, query, category, currentUser) {
       if (t.cpu < 1.0) return false;
     } else if (category === "heavy_ram") {
       if (t.rss < 100 * 1024 * 1024) return false; // >= 100 MiB
+    } else if (category === "heavy_gpu") {
+      if (t.gpu <= 0) return false;
     }
 
     // 2. Query filter
@@ -96,9 +140,15 @@ function sortTasks(tasks, sortBy, direction) {
     } else if (sortBy === "mem" || sortBy === "ram") {
       valA = a.rss;
       valB = b.rss;
+    } else if (sortBy === "gpu") {
+      valA = a.gpu;
+      valB = b.gpu;
     } else if (sortBy === "pid") {
       valA = a.pid;
       valB = b.pid;
+    } else if (sortBy === "user") {
+      valA = a.user.toLowerCase();
+      valB = b.user.toLowerCase();
     } else { // name
       valA = a.name.toLowerCase();
       valB = b.name.toLowerCase();
