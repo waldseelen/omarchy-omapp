@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "waldseelen.omapp",
+  "name": "OMAPP",
+  "version": "1.0.0",
+  "author": "waldseelen",
+  "description": "App Manager & Revo-style deep uninstaller for Omarchy. Track versions, updates, disk usage, and purge leftovers.",
+  "license": "MIT",
+  "repository": "https://github.com/waldseelen/omarchy-omapp",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Omapp.qml"
+  }
+}
