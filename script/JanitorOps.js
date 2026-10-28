@@ -125,8 +125,8 @@ function buildCleanYayCommand() {
 
 function buildCleanJournalCommand() {
   return [
-    "bash", "-c",
-    '(sudo -n journalctl --vacuum-size=100M 2>&1 || journalctl --vacuum-size=100M 2>&1) && echo "CLEAN_OK:Vacuumed systemd journal to <=100M"'
+    "sudo", "-S", "-p", "", "bash", "-c",
+    'journalctl --vacuum-size=100M 2>&1 && echo "CLEAN_OK:Vacuumed systemd journal to <=100M"'
   ];
 }
 

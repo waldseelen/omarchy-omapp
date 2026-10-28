@@ -53,7 +53,7 @@ BarWidget {
 
     onPressed: function(b) {
       if (!barWidgetRoot.bar) {
-        Util.execDetached(["omarchy-shell", "shell", "toggle", "waldseelen.omapp", "tasks"]);
+        Quickshell.execDetached(["omarchy-shell", "shell", "toggle", "waldseelen.omapp", "tasks"]);
         return;
       }
       barWidgetRoot.bar.run("omarchy-shell shell toggle waldseelen.omapp '{\"tab\":\"tasks\"}'");

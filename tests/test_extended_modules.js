@@ -9,10 +9,10 @@ console.log("Testing TaskControl, StartupServices, JanitorOps, StateStore...");
 
 // 1. TaskControl (#3 & #4)
 assert.deepStrictEqual(TaskControl.buildFreezeCommand(1234, true, false), ["kill", "-STOP", "1234"]);
-assert.deepStrictEqual(TaskControl.buildFreezeCommand(1234, false, true), ["sudo", "-n", "kill", "-CONT", "1234"]);
+assert.deepStrictEqual(TaskControl.buildFreezeCommand(1234, false, true), ["sudo", "-S", "-p", "", "kill", "-CONT", "1234"]);
 assert.strictEqual(TaskControl.buildFreezeCommand(1, true, true), null);
 
-assert.deepStrictEqual(TaskControl.buildReniceCommand(1234, -10, false), ["sudo", "-n", "renice", "-n", "-10", "-p", "1234"]);
+assert.deepStrictEqual(TaskControl.buildReniceCommand(1234, -10, false), ["sudo", "-S", "-p", "", "renice", "-n", "-10", "-p", "1234"]);
 assert.deepStrictEqual(TaskControl.buildReniceCommand(1234, 10, false), ["renice", "-n", "10", "-p", "1234"]);
 assert.deepStrictEqual(TaskControl.buildAffinityCommand(1234, "0-3", false), ["taskset", "-pc", "0-3", "1234"]);
 assert.strictEqual(TaskControl.buildAffinityCommand(1234, "invalid;rm", false), null);
@@ -49,7 +49,7 @@ assert.strictEqual(sortedStartup[0].unit, "bluetooth.service");
 
 assert.deepStrictEqual(
   StartupServices.buildServiceActionCommand(bt, "restart", true),
-  ["sudo", "-n", "systemctl", "restart", "bluetooth.service"]
+  ["sudo", "-S", "-p", "", "systemctl", "restart", "bluetooth.service"]
 );
 
 // 3. JanitorOps (#16, #21-#25)

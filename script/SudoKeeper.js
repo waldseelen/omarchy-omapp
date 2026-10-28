@@ -20,7 +20,19 @@ function getStatusCheckCommand() {
 }
 
 function getAuthCommand() {
-  return ["sudo", "-S", "-v"];
+  return ["sudo", "-S", "-p", "", "-v"];
+}
+
+function getAuthPipeCommand() {
+  return ["bash", "-c", 'IFS= read -r p; printf "%s\\n" "$p" | exec sudo -S -p "" -v'];
+}
+
+function wrapSudoStdin(cmd, hasKey) {
+  if (!cmd || !Array.isArray(cmd)) return null;
+  if (cmd[0] === "sudo" && hasKey) {
+    return ["bash", "-c", 'IFS= read -r p; printf "%s\\n" "$p" | exec "$@"', "sudo-pipe"].concat(cmd);
+  }
+  return cmd;
 }
 
 function getKeepaliveScript(parentPid) {
@@ -39,7 +51,7 @@ function buildUninstallCommand(packageName, category) {
     return ["flatpak", "uninstall", "-y", safeName];
   }
   if (!isSafePkgName(safeName)) return null;
-  return ["sudo", "-n", "pacman", "-Rns", "--noconfirm", safeName];
+  return ["sudo", "-S", "-p", "", "pacman", "-Rns", "--noconfirm", safeName];
 }
 
 function buildBatchUninstallCommand(pkgList) {
@@ -52,7 +64,7 @@ function buildBatchUninstallCommand(pkgList) {
     }
   }
   if (valid.length === 0) return null;
-  return ["sudo", "-n", "pacman", "-Rns", "--noconfirm"].concat(valid);
+  return ["sudo", "-S", "-p", "", "pacman", "-Rns", "--noconfirm"].concat(valid);
 }
 
 function buildDowngradeCommand(archivePath) {
@@ -61,13 +73,13 @@ function buildDowngradeCommand(archivePath) {
   if (!clean.startsWith("/var/cache/pacman/pkg/") || clean.indexOf("..") !== -1 || !/\.pkg\.tar\.(zst|xz|gz)$/.test(clean)) {
     return null;
   }
-  return ["sudo", "-n", "pacman", "-U", "--noconfirm", clean];
+  return ["sudo", "-S", "-p", "", "pacman", "-U", "--noconfirm", clean];
 }
 
 function buildOrphanCleanCommand() {
   return [
-    "bash", "-c",
-    'orphans=$(pacman -Qtdq 2>/dev/null); if [ -n "$orphans" ]; then (sudo -n pacman -Rns --noconfirm $orphans 2>&1 || pacman -Rns --noconfirm $orphans 2>&1) && echo "CLEAN_OK:Pruned orphan packages"; else echo "CLEAN_OK:No orphan packages to prune"; fi'
+    "sudo", "-S", "-p", "", "bash", "-c",
+    'orphans=$(pacman -Qtdq 2>/dev/null); if [ -n "$orphans" ]; then pacman -Rns --noconfirm $orphans 2>&1 && echo "CLEAN_OK:Pruned orphan packages"; else echo "CLEAN_OK:No orphan packages to prune"; fi'
   ];
 }
 
@@ -77,8 +89,8 @@ function buildOrphanPruneCommand() {
 
 function buildCacheCleanCommand() {
   return [
-    "bash", "-c",
-    'if command -v paccache >/dev/null 2>&1; then (sudo -n paccache -rk1 2>&1 && sudo -n paccache -ruk0 2>&1) && echo "CLEAN_OK:Trimmed pacman cache (kept latest version)"; else (sudo -n pacman -Sc --noconfirm 2>&1) && echo "CLEAN_OK:Cleaned pacman cache"; fi'
+    "sudo", "-S", "-p", "", "bash", "-c",
+    'if command -v paccache >/dev/null 2>&1; then paccache -rk1 2>&1 && paccache -ruk0 2>&1 && echo "CLEAN_OK:Trimmed pacman cache (kept latest version)"; else pacman -Sc --noconfirm 2>&1 && echo "CLEAN_OK:Cleaned pacman cache"; fi'
   ];
 }
 
@@ -86,6 +98,8 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     getStatusCheckCommand: getStatusCheckCommand,
     getAuthCommand: getAuthCommand,
+    getAuthPipeCommand: getAuthPipeCommand,
+    wrapSudoStdin: wrapSudoStdin,
     getKeepaliveScript: getKeepaliveScript,
     buildUninstallCommand: buildUninstallCommand,
     buildBatchUninstallCommand: buildBatchUninstallCommand,

@@ -20,7 +20,7 @@ import "script/ModelSync.js" as ModelSync
 Item {
   id: root
 
-  property var shell: null; property var manifest: null; property bool opened: false
+  property var shell: null; property var manifest: null; property bool opened: false; property bool _closing: false
   property string home: Quickshell.env("HOME"); property string activeTab: "apps"; property var prefs: StateStore.defaultPrefs()
 
   property var rawItems: []; property var displayItems: []; property int selectedIndex: 0
@@ -35,7 +35,7 @@ Item {
   property var rawServices: []; property var displayServices: []; property int selectedServiceIndex: 0
   property string serviceCategory: "all"; property string serviceSort: "impact"; property string serviceSortDirection: "desc"; property string serviceFilterText: ""
 
-  property bool sudoActive: false; property bool sudoModalOpen: false; property string sudoErrorMessage: ""
+  property bool sudoActive: false; property bool sudoModalOpen: false; property string sudoErrorMessage: ""; property string sudoSessionKey: ""
   property var runningPids: ({}); property var pendingSudoCallback: null
   property bool leftoverModalOpen: false; property var currentUninstallApp: null; property var foundLeftovers: []
   property string orphanList: ""; property var janitorStats: ({}); property var contextTarget: null
@@ -53,19 +53,19 @@ Item {
   }
 
   function open(payloadJson) {
-    root.opened = true;
-    var req = parseTabFromPayload(payloadJson);
-    if (req) root.activeTab = req;
+    root.opened = true; var req = parseTabFromPayload(payloadJson); if (req) root.activeTab = req;
   }
 
   function close() {
+    if (!root.opened || root._closing) return; root._closing = true;
     root.opened = false; root.sudoModalOpen = false; root.leftoverModalOpen = false; leftoverModal.isOpen = false; ctxMenu.hide();
+    if (root.shell && typeof root.shell.hide === "function") root.shell.hide(root.manifest ? root.manifest.id : "waldseelen.omapp");
+    root._closing = false;
   }
 
   function toggle(payloadJson) {
     var req = parseTabFromPayload(payloadJson);
-    if (root.opened) { if (req && req !== root.activeTab) open(payloadJson); else close(); }
-    else open(payloadJson);
+    if (root.opened) { if (req && req !== root.activeTab) open(payloadJson); else close(); } else open(payloadJson);
   }
 
   onOpenedChanged: {
@@ -90,7 +90,7 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omapp-manager"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
     Rectangle { anchors.fill: parent; color: Color.menu.scrim; MouseArea { anchors.fill: parent; onClicked: root.close() } }
@@ -155,9 +155,9 @@ Item {
             onToggleCheckRequested: function(pkg) { root.toggleBatchPkg(pkg); }
             onClearBatchRequested: { root.selectedBatchMap = {}; root.selectedBatchCount = 0; root.updateDisplayList(); }
             onBatchUninstallRequested: root.startBatchUninstall(); onUninstallRequested: function(app) { root.startDeepUninstall(app); }
-            onKillRequested: function(app) { root.killAppProcess(app); }; onLaunchRequested: function(app) { if (app && app.exec) Util.execDetached(["bash", "-c", app.exec + " &"]); }
-            onOpenConfigRequested: function(app) { if (app) Util.execDetached(["bash", "-c", 'mkdir -p "$HOME/.config/' + (app.pkg || app.name.toLowerCase()) + '"; xdg-open "$HOME/.config/' + (app.pkg || app.name.toLowerCase()) + '"']); }
-            onOpenUrlRequested: function(url) { if (url) Util.execDetached(["xdg-open", url]); }; onTogglePinRequested: function(pkg) { root.toggleAppPin(pkg); }
+            onKillRequested: function(app) { root.killAppProcess(app); }; onLaunchRequested: function(app) { if (app && app.exec) Quickshell.execDetached(["bash", "-c", app.exec + " &"]); }
+            onOpenConfigRequested: function(app) { if (app) Quickshell.execDetached(["bash", "-c", 'mkdir -p "$HOME/.config/' + (app.pkg || app.name.toLowerCase()) + '"; xdg-open "$HOME/.config/' + (app.pkg || app.name.toLowerCase()) + '"']); }
+            onOpenUrlRequested: function(url) { if (url) Quickshell.execDetached(["xdg-open", url]); }; onTogglePinRequested: function(pkg) { root.toggleAppPin(pkg); }
             onDowngradeRequested: function(pkg, path) { root.downgradePackage(pkg, path); }
             onContextMenuRequested: function(rx, ry, app) {
               root.contextTarget = app; var pt = centerCard.mapFromItem(null, rx, ry);
@@ -213,14 +213,14 @@ Item {
 
       SudoPromptModal {
         id: sudoModal; isOpen: root.sudoModalOpen; errorMessage: root.sudoErrorMessage
-        onSubmitted: function(pwd) { sudoModal.isChecking = true; sudoAuthProc.pendingPassword = pwd; sudoAuthProc.running = true; }
+        onSubmitted: function(pwd) { sudoModal.isChecking = true; sudoAuthProc.pendingPassword = pwd; sudoAuthProc.stdinEnabled = true; sudoAuthProc.running = true; }
         onCancelled: { root.sudoModalOpen = false; root.pendingSudoCallback = null; }
       }
 
       LeftoverReviewModal {
         id: leftoverModal; isOpen: root.leftoverModalOpen; home: root.home; appItem: root.currentUninstallApp; orphanListText: root.orphanList
         onConfirmedPurge: function(paths) { root.purgeLeftovers(paths); }
-        onPruneOrphansRequested: { actionRunnerProc.command = SudoKeeper.buildOrphanPruneCommand(); actionRunnerProc.running = true; }
+        onPruneOrphansRequested: root.runJanitorClean("orphans")
         onClosed: { root.leftoverModalOpen = false; leftoverModal.isOpen = false; root.refreshInventory(); }
       }
     }
@@ -228,6 +228,9 @@ Item {
     Item {
       focus: root.opened
       Keys.onPressed: function(event) {
+        if (event.modifiers & Qt.MetaModifier) {
+          if (event.key === Qt.Key_P || event.key === Qt.Key_Ccedilla) { root.close(); event.accepted = true; } else event.accepted = false; return;
+        }
         if (event.key === Qt.Key_Escape) {
           if (ctxMenu.isOpen) { ctxMenu.hide(); event.accepted = true; return; }
           if (root.sudoModalOpen) { root.sudoModalOpen = false; event.accepted = true; return; }
@@ -235,7 +238,7 @@ Item {
           if (root.activeTab !== "apps") { root.activeTab = "apps"; event.accepted = true; return; }
           root.close(); event.accepted = true; return;
         }
-        if (root.sudoModalOpen || root.leftoverModalOpen) return;
+        if (root.sudoModalOpen || root.leftoverModalOpen || event.modifiers !== Qt.NoModifier) return;
         if (event.key === Qt.Key_Slash) { header.focusSearch(); event.accepted = true; return; }
         if (event.key >= Qt.Key_1 && event.key <= Qt.Key_4) { header.tabChanged(["apps", "tasks", "services", "janitor"][event.key - Qt.Key_1]); event.accepted = true; return; }
 
@@ -262,15 +265,15 @@ Item {
 
   Process { id: prefsLoadProc; command: StateStore.buildLoadPrefsCommand(root.home); stdout: StdioCollector { waitForEnd: true; onStreamFinished: { root.prefs = StateStore.parsePrefs(text); root.updateDisplayList(); root.updateTaskDisplayList(); } } }
   Process { id: inventoryProc; command: Scanner.buildInventoryScanScript(); stdout: StdioCollector { waitForEnd: true; onStreamFinished: { root.rawItems = Scanner.parseInventory(text, SafeOps); root.updateDisplayList(); } } }
-  Process { id: sudoStatusProc; command: ["sudo", "-n", "true"]; onExited: function(code) { root.sudoActive = (code === 0); } }
-  Timer { id: sudoKeepaliveTimer; interval: 45000; repeat: true; running: root.sudoActive && root.opened; onTriggered: { if (!sudoKeepaliveProc.running) sudoKeepaliveProc.running = true; } }
-  Process { id: sudoKeepaliveProc; command: ["sudo", "-n", "-v"]; onExited: function(code) { if (code !== 0) root.sudoActive = false; } }
+  Process { id: sudoStatusProc; command: ["sudo", "-n", "true"]; onExited: function(code) { if (code === 0) root.sudoActive = true; else if (!root.sudoSessionKey) root.sudoActive = false; } }
+  Timer { id: sudoKeepaliveTimer; interval: 45000; repeat: true; running: root.sudoActive && root.opened; onTriggered: { root.runWithSudoStdin(sudoKeepaliveProc, SudoKeeper.getAuthCommand()); } }
+  Process { id: sudoKeepaliveProc; onStarted: root.pipeSudoKey(sudoKeepaliveProc); onExited: function(code) { if (code !== 0) { root.sudoActive = false; root.sudoSessionKey = ""; } } }
   Process {
-    id: sudoAuthProc; command: ["sudo", "-S", "-v"]; stdinEnabled: true; property string pendingPassword: ""
-    onStarted: { write(pendingPassword + "\n"); pendingPassword = ""; }
+    id: sudoAuthProc; command: SudoKeeper.getAuthPipeCommand(); stdinEnabled: true; property string pendingPassword: ""
+    onStarted: { write(pendingPassword + "\n"); }
     onExited: function(code) {
-      sudoModal.isChecking = false;
-      if (code === 0) { root.sudoActive = true; root.sudoModalOpen = false; if (root.pendingSudoCallback) { var cb = root.pendingSudoCallback; root.pendingSudoCallback = null; cb(); } }
+      sudoModal.isChecking = false; var pwd = pendingPassword; pendingPassword = "";
+      if (code === 0) { root.sudoSessionKey = pwd; root.sudoActive = true; root.sudoModalOpen = false; if (root.pendingSudoCallback) { var cb = root.pendingSudoCallback; root.pendingSudoCallback = null; cb(); } }
       else { root.sudoErrorMessage = "Incorrect password."; sudoModal.initFocus(); }
     }
   }
@@ -279,28 +282,31 @@ Item {
   Process { id: serviceScanProc; command: StartupServices.buildServicesScanScript(root.home); stdout: StdioCollector { waitForEnd: true; onStreamFinished: { root.rawServices = StartupServices.parseServicesOutput(text); root.updateServiceDisplayList(); } } }
   Process { id: janitorScanProc; command: JanitorOps.buildJanitorScanScript(root.home); stdout: StdioCollector { waitForEnd: true; onStreamFinished: { root.janitorStats = JanitorOps.parseJanitorStats(text); } } }
   Process {
-    id: actionRunnerProc; stdout: StdioCollector { id: actOut; waitForEnd: true } stderr: StdioCollector { id: actErr; waitForEnd: true }
+    id: actionRunnerProc; onStarted: root.pipeSudoKey(actionRunnerProc); stdout: StdioCollector { id: actOut; waitForEnd: true } stderr: StdioCollector { id: actErr; waitForEnd: true }
     onExited: function(code) {
       root.janitorCleaningCategory = ""; var out = actOut.text ? actOut.text.trim() : "";
       if (out.indexOf("CLEAN_OK:") !== -1) { root.janitorStatusMessage = out.split("CLEAN_OK:").pop().trim(); root.janitorStatusError = false; }
       else if (out.indexOf("CLEAN_ERR:") !== -1 || code !== 0) {
-        var errStr = actErr.text ? actErr.text.trim() : "";
+        var errStr = (actErr.text && actErr.text.trim()) ? actErr.text.trim() : out;
         root.janitorStatusMessage = out.indexOf("CLEAN_ERR:") !== -1 ? out.split("CLEAN_ERR:").pop().trim() : (errStr ? ("Action failed: " + errStr) : ("Action failed: Exit " + code));
         root.janitorStatusError = true;
       } else { root.janitorStatusMessage = "Operation completed successfully."; root.janitorStatusError = false; }
       root.refreshInventory(); root.refreshServices(); root.refreshJanitorStats();
     }
   }
-  Process { id: uninstallProc; property var targetApp: null; stderr: StdioCollector { id: uninstErr; waitForEnd: true } onExited: function(code) { if (code === 0) { leftoverModal.phase = 2; root.runLeftoverScan(uninstallProc.targetApp); } else { leftoverModal.statusMessage = "Removal failed: " + uninstErr.text; } } }
+  Process { id: uninstallProc; property var targetApp: null; onStarted: root.pipeSudoKey(uninstallProc); stderr: StdioCollector { id: uninstErr; waitForEnd: true } onExited: function(code) { if (code === 0) { leftoverModal.phase = 2; root.runLeftoverScan(uninstallProc.targetApp); } else { leftoverModal.statusMessage = "Removal failed: " + uninstErr.text; } } }
+  Process { id: taskActionProc; onStarted: root.pipeSudoKey(taskActionProc); onExited: function() { root.refreshTasks(); } }
   Process { id: leftoverScanProc; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var items = LeftoverHunter.parseScanOutput(text, root.home, SafeOps); root.foundLeftovers = items; leftoverModal.leftoverItems = items; leftoverModal.updateTotalSelected(); leftoverModal.phase = 3; } } }
   Process { id: leftoverPurgeProc; onExited: { leftoverModal.isPurging = false; leftoverModal.phase = 4; orphanCheckProc.running = true; } }
   Process { id: orphanCheckProc; command: ["bash", "-c", "pacman -Qtdq 2>/dev/null || echo NO_ORPHANS"]; stdout: StdioCollector { waitForEnd: true; onStreamFinished: { var t = text.trim(); root.orphanList = (t && t !== "NO_ORPHANS") ? t : ""; } } }
 
+  function pipeSudoKey(proc) { if (proc.stdinEnabled && root.sudoSessionKey) proc.write(root.sudoSessionKey + "\n"); }
+  function runWithSudoStdin(proc, cmd) { if (!cmd || proc.running) return; proc.command = SudoKeeper.wrapSudoStdin(cmd, !!root.sudoSessionKey); proc.stdinEnabled = (cmd[0] === "sudo" && !!root.sudoSessionKey); proc.running = true; }
   function checkSudoStatus() { if (!sudoStatusProc.running) sudoStatusProc.running = true; }
-  function lockSudo() { Util.execDetached(["sudo", "-k"]); root.sudoActive = false; root.janitorStatusMessage = "Administrator session locked."; root.janitorStatusError = false; }
-  function refreshInventory() { if (!inventoryProc.running) inventoryProc.running = true; }; function refreshProcessStatus() { if (!procCheck.running) procCheck.running = true; }
-  function refreshTasks() { if (!taskScanProc.running) taskScanProc.running = true; }; function refreshServices() { if (!serviceScanProc.running) serviceScanProc.running = true; }
-  function refreshJanitorStats() { if (!janitorScanProc.running) janitorScanProc.running = true; }; function savePreferences() { var cmd = StateStore.buildSavePrefsCommand(root.prefs, root.home); if (cmd) Util.execDetached(cmd); }
+  function lockSudo() { root.sudoSessionKey = ""; root.sudoActive = false; Quickshell.execDetached(["sudo", "-k"]); root.janitorStatusMessage = "Administrator session locked."; root.janitorStatusError = false; }
+  function refreshInventory() { if (!inventoryProc.running) inventoryProc.running = true; } function refreshProcessStatus() { if (!procCheck.running) procCheck.running = true; }
+  function refreshTasks() { if (!taskScanProc.running) taskScanProc.running = true; } function refreshServices() { if (!serviceScanProc.running) serviceScanProc.running = true; }
+  function refreshJanitorStats() { if (!janitorScanProc.running) janitorScanProc.running = true; } function savePreferences() { var cmd = StateStore.buildSavePrefsCommand(root.prefs, root.home); if (cmd) Quickshell.execDetached(cmd); }
   function promptSudo(msg, callback) { root.sudoErrorMessage = msg || ""; root.pendingSudoCallback = callback; root.sudoModalOpen = true; sudoModal.initFocus(); }
 
   function toggleAppSort(col) { root.appSortDirection = (root.activeSort === col) ? (root.appSortDirection === "desc" ? "asc" : "desc") : ((col === "name" || col === "category" || col === "version") ? "asc" : "desc"); root.activeSort = col; root.updateDisplayList(); }
@@ -333,27 +339,25 @@ Item {
     if (root.selectedServiceIndex >= sorted.length) root.selectedServiceIndex = Math.max(0, sorted.length - 1);
   }
 
-  function runTaskCmd(cmd) { if (cmd) { Util.execDetached(cmd); Qt.callLater(function() { root.refreshTasks(); }); } }
-  function killAppProcess(app) { if (!app) return; var t = app.exec ? app.exec.split(/\s+/)[0].split("/").pop() : app.pkg; Util.execDetached(["pkill", "-f", t]); Qt.callLater(function() { root.refreshProcessStatus(); }); }
+  function runTaskCmd(cmd) { if (!cmd) return; if (cmd[0] === "sudo" && !root.sudoActive) { root.promptSudo("Sudo required for process control", function() { root.runTaskCmd(cmd); }); return; } root.runWithSudoStdin(taskActionProc, cmd); }
+  function killAppProcess(app) { if (!app) return; var t = app.exec ? app.exec.split(/\s+/)[0].split("/").pop() : app.pkg; Quickshell.execDetached(["pkill", "-f", t]); Qt.callLater(function() { root.refreshProcessStatus(); }); }
 
   function startDeepUninstall(app) {
     if (!app || app.isProtected) return;
     if (!root.sudoActive && app.category !== "webapp" && app.category !== "appimage" && app.category !== "flatpak") { root.promptSudo("Sudo required to uninstall " + app.pkg, function() { root.startDeepUninstall(app); }); return; }
     root.currentUninstallApp = app; leftoverModal.phase = 1; leftoverModal.statusMessage = "Removing " + app.pkg + "..."; root.leftoverModalOpen = true; leftoverModal.isOpen = true; uninstallProc.targetApp = app;
-    if (app.category === "webapp") uninstallProc.command = ["bash", "-c", "rm -f " + SafeOps.shellEscape(root.home + "/.local/share/applications/" + app.desktopFile)];
-    else if (app.category === "appimage") uninstallProc.command = ["rm", "-f", app.exec];
-    else uninstallProc.command = SudoKeeper.buildUninstallCommand(app.pkg, app.category);
-    uninstallProc.running = true;
+    var uCmd = (app.category === "webapp") ? ["bash", "-c", "rm -f " + SafeOps.shellEscape(root.home + "/.local/share/applications/" + app.desktopFile)] : ((app.category === "appimage") ? ["rm", "-f", app.exec] : SudoKeeper.buildUninstallCommand(app.pkg, app.category));
+    root.runWithSudoStdin(uninstallProc, uCmd);
   }
   function startBatchUninstall() {
     var pkgs = Object.keys(root.selectedBatchMap); if (pkgs.length === 0) return;
     if (!root.sudoActive) { root.promptSudo("Sudo required for batch uninstall", function() { root.startBatchUninstall(); }); return; }
     var cmd = SudoKeeper.buildBatchUninstallCommand(pkgs);
-    if (cmd) { root.selectedBatchMap = {}; root.selectedBatchCount = 0; actionRunnerProc.command = cmd; actionRunnerProc.running = true; }
+    if (cmd) { root.selectedBatchMap = {}; root.selectedBatchCount = 0; root.runWithSudoStdin(actionRunnerProc, cmd); }
   }
   function downgradePackage(pkg, path) {
     if (!root.sudoActive) { root.promptSudo("Sudo required to downgrade " + pkg, function() { root.downgradePackage(pkg, path); }); return; }
-    var cmd = SudoKeeper.buildDowngradeCommand(path); if (cmd) { actionRunnerProc.command = cmd; actionRunnerProc.running = true; }
+    var cmd = SudoKeeper.buildDowngradeCommand(path); if (cmd) root.runWithSudoStdin(actionRunnerProc, cmd);
   }
   function runLeftoverScan(app) { var sc = LeftoverHunter.buildScanScript(app, root.home, SafeOps); if (!sc) { leftoverModal.phase = 3; return; } leftoverScanProc.command = sc.argv; leftoverScanProc.running = true; }
   function scanOrphanDotfiles() { var sc = LeftoverHunter.buildOrphanDotfilesScanScript(root.home, SafeOps); if (!sc) return; root.currentUninstallApp = null; leftoverModal.phase = 2; leftoverModal.statusMessage = "Scanning ~/.cache and ~/.config for orphaned directories..."; root.leftoverModalOpen = true; leftoverModal.isOpen = true; leftoverScanProc.command = sc; leftoverScanProc.running = true; }
@@ -368,22 +372,22 @@ Item {
     if (!item) return;
     if (item.scope === "system" && !root.sudoActive) { root.promptSudo("Sudo required for system service", function() { root.triggerServiceAction(item, act); }); return; }
     var cmd = StartupServices.buildServiceActionCommand(item, act, root.sudoActive, root.home);
-    if (cmd) { actionRunnerProc.command = cmd; actionRunnerProc.running = true; }
+    if (cmd) root.runWithSudoStdin(actionRunnerProc, cmd);
   }
   function runJanitorClean(cat) {
     if ((cat === "orphans" || cat === "pacman" || cat === "journal") && !root.sudoActive) { root.promptSudo("Sudo required for system cleanup", function() { root.runJanitorClean(cat); }); return; }
     root.janitorCleaningCategory = cat; root.janitorStatusMessage = "Cleaning " + cat + "..."; root.janitorStatusError = false;
-    actionRunnerProc.command = (cat === "orphans") ? SudoKeeper.buildOrphanPruneCommand() : ((cat === "pacman") ? SudoKeeper.buildCacheCleanCommand() : JanitorOps.buildCleanCommand(cat));
-    if (actionRunnerProc.command) actionRunnerProc.running = true;
+    var cmd = (cat === "orphans") ? SudoKeeper.buildOrphanPruneCommand() : ((cat === "pacman") ? SudoKeeper.buildCacheCleanCommand() : JanitorOps.buildCleanCommand(cat));
+    if (cmd) root.runWithSudoStdin(actionRunnerProc, cmd);
   }
-  function restoreBackupArchive(name) { var cmd = SafeOps.buildRestoreBackupCommand(root.home + "/.local/share/omapp/backups/" + name, root.home); if (cmd) { root.janitorStatusMessage = "Restoring backup " + name + "..."; root.janitorStatusError = false; actionRunnerProc.command = cmd; actionRunnerProc.running = true; } }
+  function restoreBackupArchive(name) { var cmd = SafeOps.buildRestoreBackupCommand(root.home + "/.local/share/omapp/backups/" + name, root.home); if (cmd) { root.janitorStatusMessage = "Restoring backup " + name + "..."; root.janitorStatusError = false; root.runWithSudoStdin(actionRunnerProc, cmd); } }
   function handleContextAction(actId) {
     var t = root.contextTarget; if (!t) return;
     if (root.activeTab === "apps") {
-      if (actId === "launch" && t.exec) Util.execDetached(["bash", "-c", t.exec + " &"]);
+      if (actId === "launch" && t.exec) Quickshell.execDetached(["bash", "-c", t.exec + " &"]);
       else if (actId === "pin") root.toggleAppPin(t.pkg);
       else if (actId === "batch") root.toggleBatchPkg(t.pkg);
-      else if (actId === "config") Util.execDetached(["xdg-open", root.home + "/.config"]);
+      else if (actId === "config") Quickshell.execDetached(["xdg-open", root.home + "/.config"]);
       else if (actId === "uninstall") root.startDeepUninstall(t);
     } else if (root.activeTab === "tasks") {
       if (actId === "pin") root.toggleTaskPin(t.name);

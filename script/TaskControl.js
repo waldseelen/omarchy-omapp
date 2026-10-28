@@ -11,14 +11,14 @@ function buildKillCommand(pid, force, useSudo) {
   var p = parseInt(pid, 10);
   if (isNaN(p) || p <= 1) return null;
   var sig = force ? "-9" : "-15";
-  return useSudo ? ["sudo", "-n", "kill", sig, String(p)] : ["kill", sig, String(p)];
+  return useSudo ? ["sudo", "-S", "-p", "", "kill", sig, String(p)] : ["kill", sig, String(p)];
 }
 
 function buildFreezeCommand(pid, freeze, useSudo) {
   var p = parseInt(pid, 10);
   if (isNaN(p) || p <= 1) return null;
   var sig = freeze ? "-STOP" : "-CONT";
-  return useSudo ? ["sudo", "-n", "kill", sig, String(p)] : ["kill", sig, String(p)];
+  return useSudo ? ["sudo", "-S", "-p", "", "kill", sig, String(p)] : ["kill", sig, String(p)];
 }
 
 function buildReniceCommand(pid, niceValue, useSudo) {
@@ -28,7 +28,7 @@ function buildReniceCommand(pid, niceValue, useSudo) {
   if (n < -20) n = -20;
   if (n > 19) n = 19;
   if (useSudo || n < 0) {
-    return ["sudo", "-n", "renice", "-n", String(n), "-p", String(p)];
+    return ["sudo", "-S", "-p", "", "renice", "-n", String(n), "-p", String(p)];
   }
   return ["renice", "-n", String(n), "-p", String(p)];
 }
@@ -39,7 +39,7 @@ function buildAffinityCommand(pid, cpuSpec, useSudo) {
   var cleanSpec = cpuSpec.trim();
   if (!/^[0-9,-]+$/.test(cleanSpec)) return null;
   if (useSudo) {
-    return ["sudo", "-n", "taskset", "-pc", cleanSpec, String(p)];
+    return ["sudo", "-S", "-p", "", "taskset", "-pc", cleanSpec, String(p)];
   }
   return ["taskset", "-pc", cleanSpec, String(p)];
 }

@@ -4,8 +4,27 @@
 
 - `omarchy plugin validate /home/hp/Work/omarchy-omapp`: **PASS** exit 0, schemaVersion 1, valid manifest & kinds/entrypoints mapping
 - `for t in tests/test_*.js; do node "$t" || exit 1; done`: **PASS** 7 suites (`test_safe_ops`, `test_sudo_keeper`, `test_scanner`, `test_sorter`, `test_task_manager`, `test_leftover_hunter`, `test_extended_modules`); 0 errors
-- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 396 lines, `LeftoverReviewModal.qml` 396 lines)
+- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 400 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
+
+## 2026-10-28 — Hyprland Shortcut Passthrough, Dynamic Layer Focus & Shell Hide Sync
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `Omapp.qml›WlrLayershell.keyboardFocus`: Switched from static `Exclusive` to dynamic `root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None`, guaranteeing zero keyboard grab when closed or hidden.
+  - `Omapp.qml›Keys.onPressed`: Added explicit `event.modifiers & Qt.MetaModifier` interceptor; passes all Super combinations to Hyprland compositor (`event.accepted = false`), while honoring `Super+P` and `Super+Ccedilla` to close the overlay; single-key hotkeys strictly guarded by `event.modifiers === Qt.NoModifier`.
+  - `Omapp.qml›close, _closing`: Synchronized close lifecycle with `omarchy-shell` via `root.shell.hide("waldseelen.omapp")` with `_closing` recursion guard so `toggle` IPC never enters an out-of-sync state.
+- **Kanıt**: `omarchy plugin validate .` PASS (exit 0), 7 Node.js test suites PASS (exit 0), `wc -l Omapp.qml` = 400 lines PASS, 0 hex colors PASS, `omarchy-restart-shell` verified, `omapp` toggle on/off verified with `hyprctl layers`.
+- **Kalan boşluk**: Yok.
+
+## 2026-10-28 — Sudo `TS_PPID` Outer-Argv Elevation, `stdin` EOF Streaming & Detached Argv Fix
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `script/SudoKeeper.js`, `script/JanitorOps.js`, `script/StartupServices.js`, `script/TaskControl.js`, `script/TaskManager.js`: Moved `["sudo", "-S", "-p", "", ...]` to `argv[0]` across all privileged commands (`buildOrphanCleanCommand`, `buildCacheCleanCommand`, `buildCleanJournalCommand`, `buildUninstallCommand`, `buildBatchUninstallCommand`, `buildDowngradeCommand`, `buildServiceActionCommand`, `buildKillCommand`, `buildFreezeCommand`, `buildReniceCommand`, `buildAffinityCommand`) so `sudo` never runs inside a child `bash -c` subshell with a mismatched `PPID`.
+  - `Omapp.qml›pipeSudoKey, runWithSudoStdin, sudoAuthProc, actionRunnerProc, uninstallProc, taskActionProc`: Added in-memory `sudoSessionKey` streaming over `stdin` with immediate `stdinEnabled = false` (`EOF`) on `onStarted`; replaced all broken `Util.execDetached(array)` calls with `Quickshell.execDetached(array)` and `taskActionProc`; surfaced `2>&1` stdout errors when `actErr.text` is empty; reloaded live shell via `omarchy-shell shell rescanPlugins`.
+  - `OmappBarWidget.qml`: Replaced `Util.execDetached([...])` fallback with `Quickshell.execDetached([...])`.
+  - `tests/test_sudo_keeper.js`, `tests/test_task_manager.js`, `tests/test_extended_modules.js`: Updated unit test assertions for outer `["sudo", "-S", "-p", "", ...]` command vectors.
+- **Kanıt**: `omarchy plugin validate .` PASS (exit 0), `omarchy-shell shell rescanPlugins` PASS (0 QML warnings/errors), 7 Node.js test suites PASS (exit 0), `wc -l` ≤400 lines PASS across all 25 source files, 0 hex colors PASS.
+- **Kalan boşluk**: Yok.
 
 ## 2026-10-28 — Sudo Root Persistence, Modal Focus & Janitor Feedback Hardening
 

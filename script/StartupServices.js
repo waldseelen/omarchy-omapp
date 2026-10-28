@@ -185,7 +185,7 @@ function buildServiceActionCommand(item, action, useSudo) {
     return ["systemctl", "--user", action, item.unit];
   }
   if (item.scope === "system" && /^[a-zA-Z0-9@_.-]+$/.test(item.unit)) {
-    return useSudo ? ["sudo", "-n", "systemctl", action, item.unit] : null;
+    return useSudo ? ["sudo", "-S", "-p", "", "systemctl", action, item.unit] : null;
   }
   if (item.scope === "hyprland") {
     var ln = parseInt(item.unit, 10);

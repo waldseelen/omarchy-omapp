@@ -88,7 +88,7 @@ const killTerm = TaskManager.buildKillCommand(13336, false, false);
 assert.deepStrictEqual(killTerm, ["kill", "-15", "13336"]);
 
 const killForceSudo = TaskManager.buildKillCommand(3778, true, true);
-assert.deepStrictEqual(killForceSudo, ["sudo", "-n", "kill", "-9", "3778"]);
+assert.deepStrictEqual(killForceSudo, ["sudo", "-S", "-p", "", "kill", "-9", "3778"]);
 
 // Protection for PID 1
 assert.strictEqual(TaskManager.buildKillCommand(1, true, true), null, "PID 1 must be protected");

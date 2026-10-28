@@ -367,7 +367,7 @@ function buildKillCommand(pid, force, useSudo) {
   var p = parseInt(pid, 10);
   if (isNaN(p) || p <= 1) return null;
   var sig = force ? "-9" : "-15";
-  return useSudo ? ["sudo", "-n", "kill", sig, String(p)] : ["kill", sig, String(p)];
+  return useSudo ? ["sudo", "-S", "-p", "", "kill", sig, String(p)] : ["kill", sig, String(p)];
 }
 
 if (typeof module !== 'undefined' && module.exports) {
