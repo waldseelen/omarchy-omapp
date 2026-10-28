@@ -95,9 +95,27 @@ BorderSurface {
   }
 
   Flickable {
+    id: inspectorFlickable
     anchors.fill: parent; anchors.margins: Style.space(16); visible: !!inspectorRoot.appItem
-    contentHeight: contentCol.implicitHeight; boundsBehavior: Flickable.StopAtBounds; pixelAligned: true
+    contentHeight: contentCol.implicitHeight; boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    flickDeceleration: 750
+    maximumFlickVelocity: 6000
+    pixelAligned: false
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+    WheelHandler {
+      target: null
+      acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+      onWheel: function(event) {
+        var dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 1.8 : (event.angleDelta.y / 120 * Style.space(50));
+        if (dy !== 0) {
+          var maxY = Math.max(0, inspectorFlickable.contentHeight - inspectorFlickable.height);
+          inspectorFlickable.contentY = Math.max(0, Math.min(maxY, inspectorFlickable.contentY - dy));
+          event.accepted = true;
+        }
+      }
+    }
 
     Column {
       id: contentCol; width: parent.width; spacing: Style.space(12)

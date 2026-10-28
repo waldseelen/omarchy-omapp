@@ -2,9 +2,28 @@
 
 ## Current Gate Status (2026-10-28)
 
+- `omarchy plugin validate /home/hp/Work/omarchy-omapp`: **PASS** exit 0, schemaVersion 1, valid manifest & kinds/entrypoints mapping
 - `for t in tests/test_*.js; do node "$t" || exit 1; done`: **PASS** 7 suites (`test_safe_ops`, `test_sudo_keeper`, `test_scanner`, `test_sorter`, `test_task_manager`, `test_leftover_hunter`, `test_extended_modules`); 0 errors
-- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 397 lines, `TaskManager.js` 389 lines)
+- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 397 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
+
+## 2026-10-28 — Touchpad Sensitivity & Smooth Kinetic Scrolling Overhaul
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `TaskManagerView.qml`: Added dedicated `WheelHandler` with `1.8x` fine `pixelDelta` amplification and `50px` notch stepping; added `scrollActiveTimer` (1200ms) to lock background timer refreshes during active scrolling (`isUserScrolling`); tuned physics with `pixelAligned: false`, `flickDeceleration: 750`, `maximumFlickVelocity: 6000`.
+  - `ui/AppsView.qml`, `ui/StartupServicesView.qml`: Configured `WheelHandler` and optimized physics parameters (`pixelAligned: false`, `flickDeceleration: 750`, `maximumFlickVelocity: 6000`).
+  - `SystemJanitorView.qml`, `AppInspector.qml`, `ui/TaskInspector.qml`, `LeftoverReviewModal.qml`: Equipped all `Flickable` containers with `WheelHandler` and fluid kinetic scrolling parameters.
+- **Kanıt**: `omarchy plugin validate` PASS (exit 0), 7 Node.js test suites PASS (exit 0), `wc -l` ≤400 lines PASS across all 25 source files, 0 hex colors PASS.
+- **Kalan boşluk**: Yok.
+
+## 2026-10-28 — Omarchy Plugin Marketplace Compliance & BarWidget Refactor
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `OmappBarWidget.qml`: Refactored base component from `Panel` to `BarWidget` and `WidgetButton` (`qs.Ui`), adhering to Omarchy's official bar widget contract; added tooltip, click registration via `bar.run(...)`, and native hover handling.
+  - `README.md`: Documented official marketplace installation (`omarchy plugin add`), removal (`omarchy plugin remove`), and direct Omarchy Shell IPC summon routes.
+  - `ARCHITECTURE.md`: Registered `BarWidget` and `WidgetButton` under `qs.Ui` primitive dependencies.
+- **Kanıt**: `omarchy plugin validate` PASS (exit 0), 7 Node.js test suites PASS (exit 0), `wc -l` ≤400 lines PASS, 0 hex colors PASS.
+- **Kalan boşluk**: Yok.
 
 ## 2026-10-28 — System Janitor Verification, Inline Confirmation & Feedback Banner
 

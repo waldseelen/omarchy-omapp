@@ -158,13 +158,23 @@ Rectangle {
 
             ListView {
               id: leftoverList
-              anchors.fill: parent
-              anchors.margins: Style.space(6)
-              model: leftoverModalRoot.leftoverItems
-              spacing: Style.space(3)
-              boundsBehavior: Flickable.StopAtBounds
-
+              anchors.fill: parent; anchors.margins: Style.space(6)
+              model: leftoverModalRoot.leftoverItems; spacing: Style.space(3)
+              boundsBehavior: Flickable.StopAtBounds; flickableDirection: Flickable.VerticalFlick
+              flickDeceleration: 750; maximumFlickVelocity: 6000; pixelAligned: false
               ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+              WheelHandler {
+                target: null; acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: function(e) {
+                  var dy = e.pixelDelta.y !== 0 ? e.pixelDelta.y * 1.8 : (e.angleDelta.y / 120 * Style.space(50));
+                  if (dy !== 0) {
+                    var maxY = Math.max(0, leftoverList.contentHeight - leftoverList.height);
+                    leftoverList.contentY = Math.max(0, Math.min(maxY, leftoverList.contentY - dy));
+                    e.accepted = true;
+                  }
+                }
+              }
 
               delegate: CursorSurface {
                 required property var modelData
@@ -269,10 +279,24 @@ Rectangle {
             clip: true
 
             Flickable {
-              anchors.fill: parent
-              anchors.margins: Style.space(6)
+              id: prevFlickable
+              anchors.fill: parent; anchors.margins: Style.space(6)
               contentHeight: prevTxt.implicitHeight
-              boundsBehavior: Flickable.StopAtBounds
+              boundsBehavior: Flickable.StopAtBounds; flickableDirection: Flickable.VerticalFlick
+              flickDeceleration: 750; maximumFlickVelocity: 6000; pixelAligned: false
+              ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+              WheelHandler {
+                target: null; acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: function(e) {
+                  var dy = e.pixelDelta.y !== 0 ? e.pixelDelta.y * 1.8 : (e.angleDelta.y / 120 * Style.space(50));
+                  if (dy !== 0) {
+                    var maxY = Math.max(0, prevFlickable.contentHeight - prevFlickable.height);
+                    prevFlickable.contentY = Math.max(0, Math.min(maxY, prevFlickable.contentY - dy));
+                    e.accepted = true;
+                  }
+                }
+              }
 
               Text {
                 id: prevTxt

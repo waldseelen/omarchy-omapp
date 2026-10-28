@@ -36,12 +36,30 @@ BorderSurface {
   clip: true
 
   Flickable {
+    id: jFlickable
     anchors.fill: parent
     anchors.margins: Style.space(18)
     contentHeight: jCol.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    flickDeceleration: 750
+    maximumFlickVelocity: 6000
+    pixelAligned: false
 
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+    WheelHandler {
+      target: null
+      acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+      onWheel: function(event) {
+        var dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 1.8 : (event.angleDelta.y / 120 * Style.space(60));
+        if (dy !== 0) {
+          var maxY = Math.max(0, jFlickable.contentHeight - jFlickable.height);
+          jFlickable.contentY = Math.max(0, Math.min(maxY, jFlickable.contentY - dy));
+          event.accepted = true;
+        }
+      }
+    }
 
     Column {
       id: jCol

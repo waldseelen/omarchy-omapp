@@ -138,15 +138,29 @@ Item {
           model: taskViewRoot.taskModel
           currentIndex: taskViewRoot.selectedIndex
           spacing: Style.space(2)
-          pixelAligned: true
+          pixelAligned: false
           boundsBehavior: Flickable.StopAtBounds
           flickableDirection: Flickable.VerticalFlick
-          flickDeceleration: 1500
-          maximumFlickVelocity: 2500
+          flickDeceleration: 750
+          maximumFlickVelocity: 6000
           highlightMoveDuration: 0
           clip: true
 
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          WheelHandler {
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+              scrollActiveTimer.restart();
+              var dy = event.pixelDelta.y !== 0 ? event.pixelDelta.y * 1.8 : (event.angleDelta.y / 120 * Style.space(50));
+              if (dy !== 0) {
+                var maxY = Math.max(0, taskListView.contentHeight - taskListView.height);
+                taskListView.contentY = Math.max(0, Math.min(maxY, taskListView.contentY - dy));
+                event.accepted = true;
+              }
+            }
+          }
 
           delegate: CursorSurface {
             id: taskRow
@@ -345,8 +359,14 @@ Item {
     }
   }
 
+  Timer {
+    id: scrollActiveTimer
+    interval: 1200
+    repeat: false
+  }
+
   function isUserScrolling() {
-    return taskListView.moving || taskListView.flicking || taskListView.dragging;
+    return taskListView.moving || taskListView.flicking || taskListView.dragging || scrollActiveTimer.running;
   }
 
   function positionAt(idx) {

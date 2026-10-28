@@ -4,12 +4,12 @@ import qs.Commons
 import qs.Ui
 import "script/TaskManager.js" as TaskManager
 
-Panel {
+BarWidget {
   id: barWidgetRoot
 
   moduleName: "waldseelen.omapp"
-  ipcTarget: ""
-  implicitWidth: contentRow.implicitWidth
+  implicitWidth: button.implicitWidth
+  implicitHeight: button.implicitHeight
 
   property var cpuPrevState: ({ total: 0, idle: 0 })
   property real cpuPct: 0.0
@@ -43,31 +43,44 @@ Panel {
     }
   }
 
-  Row {
-    id: contentRow
-    anchors.verticalCenter: parent.verticalCenter
-    spacing: Style.space(5)
+  WidgetButton {
+    id: button
+    anchors.fill: parent
+    bar: barWidgetRoot.bar
+    labelVisible: false
+    fixedWidth: contentRow.implicitWidth + Style.spaceReal(16)
+    tooltipText: "OMAPP Task Manager (Click to open)"
 
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      text: "󰍛"
-      color: barWidgetRoot.cpuPct >= 50 ? Color.urgent : barWidgetRoot.bar.foreground
-      font.family: barWidgetRoot.bar.fontFamily
-      font.pixelSize: barWidgetRoot.bar.iconFontSize
+    onPressed: function(b) {
+      if (!barWidgetRoot.bar) {
+        Util.execDetached(["omarchy-shell", "shell", "toggle", "waldseelen.omapp", "tasks"]);
+        return;
+      }
+      barWidgetRoot.bar.run("omarchy-shell shell toggle waldseelen.omapp '{\"tab\":\"tasks\"}'");
     }
 
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      text: barWidgetRoot.cpuPct.toFixed(0) + "% · " + barWidgetRoot.ramGiB.toFixed(1) + "G"
-      color: barWidgetRoot.bar.foreground
-      font.family: barWidgetRoot.bar.fontFamily
-      font.pixelSize: barWidgetRoot.bar.fontSize
-    }
-  }
+    Row {
+      id: contentRow
+      anchors.centerIn: parent
+      spacing: Style.space(5)
 
-  function onClicked() {
-    Util.execDetached(["omarchy-shell", "shell", "summon", "waldseelen.omapp", "tasks"]);
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: "󰍛"
+        color: barWidgetRoot.cpuPct >= 50 ? Color.urgent : (barWidgetRoot.bar ? barWidgetRoot.bar.foreground : Color.foreground)
+        font.family: barWidgetRoot.bar ? barWidgetRoot.bar.fontFamily : Style.font.family
+        font.pixelSize: barWidgetRoot.bar ? barWidgetRoot.bar.iconFontSize : Style.font.body
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: barWidgetRoot.cpuPct.toFixed(0) + "% · " + barWidgetRoot.ramGiB.toFixed(1) + "G"
+        color: barWidgetRoot.bar ? barWidgetRoot.bar.foreground : Color.foreground
+        font.family: barWidgetRoot.bar ? barWidgetRoot.bar.fontFamily : Style.font.family
+        font.pixelSize: barWidgetRoot.bar ? barWidgetRoot.bar.fontSize : Style.font.caption
+      }
+    }
   }
 }

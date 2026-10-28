@@ -33,7 +33,11 @@ Native Quickshell overlay and bar widget for Omarchy and Arch Linux. Manage inst
 ## Installation & CLI Usage
 
 ```bash
+# Install and enable via Omarchy Plugin Manager
 omarchy plugin add https://github.com/waldseelen/omarchy-omapp.git --enable
+
+# Safe removal
+omarchy plugin remove waldseelen.omapp
 ```
 
 Summon or toggle from CLI or keybindings:
@@ -44,6 +48,10 @@ omapp apps      # Open directly to Applications tab
 omapp tasks     # Open directly to Task Manager tab
 omapp services  # Open directly to Startup & Services tab
 omapp janitor   # Open directly to System Janitor tab
+
+# Direct Omarchy Shell IPC summon
+omarchy-shell shell summon waldseelen.omapp '{"tab":"tasks"}'
+omarchy-shell shell hide waldseelen.omapp
 ```
 
 ---

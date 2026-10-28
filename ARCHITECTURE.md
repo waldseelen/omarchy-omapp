@@ -47,4 +47,4 @@ omarchy-omapp/
 `manifest.json / bin/omapp` → `Omapp.qml` → `ui/*.qml` & View QMLs → `script/*.js` → `Quickshell.Io.Process`.
 
 - `script/*.js` modules never import QML components and remain pure ES5/ES6 compatible with both QML's JS engine and Node.js test runners.
-- All UI surfaces inherit from Omarchy's `qs.Ui` primitives (`BorderSurface`, `CursorSurface`, `Button`, `TextField`, `PanelSeparator`, `Panel`) and `qs.Commons` (`Color`, `Style`, `Border`, `Util`).
+- All UI surfaces inherit from Omarchy's `qs.Ui` primitives (`BorderSurface`, `CursorSurface`, `Button`, `TextField`, `PanelSeparator`, `Panel`, `BarWidget`, `WidgetButton`) and `qs.Commons` (`Color`, `Style`, `Border`, `Util`).
