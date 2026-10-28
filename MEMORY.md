@@ -1,0 +1,8 @@
+# MEMORY.md — Durable Non-Obvious Facts
+
+- **Quickshell `ListView` Scroll Jitter**: Reassigning a JavaScript array (`model: root.displayTasks`) on a timer destroys and recreates every QML delegate, resetting touchpad scroll momentum. Always mutate a persistent `ListModel` in-place via `ModelSync.js` (`set` / `append` / `remove`) and pause timer refreshes while `ListView.moving || ListView.flicking || ListView.dragging`.
+- **`omarchy-shell` IPC Empty Payload**: When `omarchy-shell shell toggle waldseelen.omapp` is invoked without a 4th argument, `omarchy-shell` passes the string `"{}"` as `payloadJson`. `parseTabFromPayload` must ignore `"{}"` instead of treating it as a tab identifier.
+- **`pacman -Qo` Output Format**: `pacman -Qo /path/to/bin` prints `<path> is owned by <pkg> <version>`. Using `awk '{print $NF}'` extracts the version string, not the package name. Always use `pacman -Qoq /path/to/bin | head -n 1`.
+- **Linux DRM `fdinfo` Duplicate Descriptors**: A single process often holds multiple file descriptors pointing to the same DRM client context (`drm-client-id`). Always deduplicate by `pid + ":" + clientId` before summing `drm-memory-vram`, `drm-memory-gtt`, and `drm-engine-*` nanoseconds.
+- **AMD APU GTT Memory**: Integrated AMD Radeon GPUs allocate dynamic graphics memory in `drm-memory-gtt` while reporting `0 KiB` or small carveout values in `drm-memory-vram`. When `vramKiB < 1024`, include `gttKiB` so active GPU memory is accurately reflected.
+- **QML Relative JS Imports**: Files inside `ui/*.qml` must import scripts using `"../script/<Module>.js"`, whereas root-level `.qml` files import `"script/<Module>.js"`.

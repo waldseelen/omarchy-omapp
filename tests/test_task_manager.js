@@ -110,4 +110,26 @@ assert.strictEqual(details.exe, "/usr/lib/brave-bin/brave");
 assert.strictEqual(details.pkg, "brave-bin");
 assert.strictEqual(details.cwd, "/home/hp");
 
+// 7. Process Grouping (#1) & Pinned Sorting (#30) & System Header Telemetry (#2)
+const grouped = TaskManager.groupTasksByApp([
+  { pid: 100, name: "brave", user: "hp", cpu: 4.0, mem: 1.0, rss: 1000, gpuPercent: 2.0, gpuMemMiB: 50, diskBps: 1024, state: "S", isFrozen: false, nice: 0, isMine: true },
+  { pid: 101, name: "brave", user: "hp", cpu: 6.0, mem: 2.0, rss: 2000, gpuPercent: 3.0, gpuMemMiB: 30, diskBps: 2048, state: "S", isFrozen: false, nice: 0, isMine: true },
+  { pid: 200, name: "ghostty", user: "hp", cpu: 1.0, mem: 0.5, rss: 500, gpuPercent: 0, gpuMemMiB: 10, diskBps: 0, state: "S", isFrozen: false, nice: 0, isMine: true }
+], { brave: true });
+assert.strictEqual(grouped.length, 4, "Should have 1 brave group + 2 expanded brave children + 1 ghostty");
+assert.strictEqual(grouped[0].groupCount, 2);
+assert.strictEqual(grouped[0].cpu, 10.0);
+assert.strictEqual(grouped[0].gpuMemMiB, 80);
+
+const pinnedSorted = TaskManager.sortTasks(tasks, "cpu", "desc", { systemd: true });
+assert.strictEqual(pinnedSorted[0].name, "systemd", "Pinned process must float to top");
+
+const cpuPrev = { total: 0, idle: 0 };
+TaskManager.parseSystemHeaderStats("===SYS_START===\ncpu  1000 0 500 8500 0 0 0 0 0 0\nMemTotal: 16384000 kB\nMemAvailable: 8192000 kB\n18\n54000\n===SYS_END===", cpuPrev);
+const sys2 = TaskManager.parseSystemHeaderStats("===SYS_START===\ncpu  1200 0 600 9200 0 0 0 0 0 0\nMemTotal: 16384000 kB\nMemAvailable: 8192000 kB\n24\n58000\n===SYS_END===", cpuPrev);
+assert.strictEqual(sys2.cpuPercent, 30.0);
+assert.strictEqual(sys2.memPercent, 50);
+assert.strictEqual(sys2.gpuPercent, 24);
+assert.strictEqual(sys2.tempC, 58);
+
 console.log("TaskManager tests passed! ✅");

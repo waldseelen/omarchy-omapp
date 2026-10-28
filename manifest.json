@@ -2,15 +2,22 @@
   "schemaVersion": 1,
   "id": "waldseelen.omapp",
   "name": "OMAPP",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "waldseelen",
-  "description": "Native App Manager, Process Task Manager & Deep Residual Uninstaller for Omarchy and Arch Linux.",
+  "description": "Native App Manager, Process Task Manager, Startup Services & Deep Residual Uninstaller for Omarchy and Arch Linux.",
   "license": "MIT",
   "repository": "https://github.com/waldseelen/omarchy-omapp",
-  "kinds": ["overlay", "menu"],
+  "kinds": ["overlay", "menu", "bar-widget"],
   "keepLoaded": true,
+  "barWidget": {
+    "icon": "󰍛",
+    "defaultEnabled": true,
+    "defaultSection": "right",
+    "defaultOrder": 42
+  },
   "entryPoints": {
     "overlay": "Omapp.qml",
-    "menu": "Omapp.qml"
+    "menu": "Omapp.qml",
+    "barWidget": "OmappBarWidget.qml"
   }
 }

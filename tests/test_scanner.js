@@ -45,22 +45,57 @@ const mockFullOutput = [
   "===DESKTOP_END===",
   "===PACMAN_START===",
   mockPacmanBlock,
-  "===PACMAN_END==="
+  "===PACMAN_END===",
+  "===USERDATA_START===",
+  "2048\t/home/hp/.config/bat",
+  "===USERDATA_END===",
+  "===FLATPAK_START===",
+  "com.spotify.Client\tSpotify Flatpak\t1.2.4\t300.0 MiB",
+  "===FLATPAK_END===",
+  "===APPIMAGE_START===",
+  "/home/hp/Applications/Obsidian.AppImage\t104857600\t1700000000",
+  "===APPIMAGE_END==="
 ].join("\n");
 
 const unified = Scanner.parseInventory(mockFullOutput);
-assert.strictEqual(unified.length, 2);
+assert.strictEqual(unified.length, 4);
 
-// bat had a desktop entry -> category: desktop
+// bat had a desktop entry -> category: desktop + 2 MiB userData
 const batItem = unified.find(i => i.pkg === "bat");
 assert.ok(batItem);
 assert.strictEqual(batItem.category, "desktop");
 assert.strictEqual(batItem.size, 5347738);
+assert.strictEqual(batItem.userDataBytes, 2048 * 1024);
 
 // ripgrep had NO desktop entry -> category: system
 const rgItem = unified.find(i => i.pkg === "ripgrep");
 assert.ok(rgItem);
 assert.strictEqual(rgItem.category, "system");
 assert.strictEqual(rgItem.size, 4404019);
+
+// Flatpak & AppImage (#12)
+const fpItem = unified.find(i => i.category === "flatpak");
+assert.ok(fpItem);
+assert.strictEqual(fpItem.pkg, "com.spotify.Client");
+
+const aiItem = unified.find(i => i.category === "appimage");
+assert.ok(aiItem);
+assert.strictEqual(aiItem.name, "Obsidian");
+
+// Deep inspect (#14 & #19)
+const deepParsed = Scanner.parsePackageDeepInspect([
+  "===FILES_START===",
+  "/usr/bin/bat",
+  "===FILES_END===",
+  "===CACHE_START===",
+  "/var/cache/pacman/pkg/bat-0.26.0-1-x86_64.pkg.tar.zst",
+  "===CACHE_END===",
+  "===TREE_START===",
+  "bat\n├─glibc",
+  "===TREE_END==="
+].join("\n"));
+assert.strictEqual(deepParsed.files[0], "/usr/bin/bat");
+assert.strictEqual(deepParsed.cachedVersions.length, 1);
+assert.ok(deepParsed.tree.includes("glibc"));
 
 console.log("Scanner tests passed! ✅");

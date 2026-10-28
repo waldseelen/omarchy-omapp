@@ -1,14 +1,9 @@
-// LeftoverHunter.js — Deep scanner for residual files, configs, caches, and autostarts
-// Discovers leftovers matching app identifiers and validates them against SafeOps barriers
+// LeftoverHunter.js — Deep scanner for residual files, orphaned dotfiles (#17), and file preview (#18)
 
 function getSafe(safeParam) {
   if (safeParam && safeParam.validateLeftoverPath) return safeParam;
-  if (typeof SafeOps !== "undefined" && SafeOps && SafeOps.validateLeftoverPath) {
-    return SafeOps;
-  }
-  if (typeof globalThis !== "undefined" && globalThis.SafeOps) {
-    return globalThis.SafeOps;
-  }
+  if (typeof SafeOps !== "undefined" && SafeOps && SafeOps.validateLeftoverPath) return SafeOps;
+  if (typeof globalThis !== "undefined" && globalThis.SafeOps) return globalThis.SafeOps;
   if (typeof require !== "undefined") {
     try { return require("./SafeOps.js"); } catch (e) {}
   }
@@ -21,17 +16,13 @@ function generateCandidateSlugs(app) {
 
   if (app.pkg) rawList.push(app.pkg);
   if (app.exec) {
-    var cleanExec = app.exec.split(/\s+/)[0];
-    cleanExec = cleanExec.split("/").pop();
+    var cleanExec = app.exec.split(/\s+/)[0].split("/").pop();
     if (cleanExec) rawList.push(cleanExec);
   }
   if (app.desktopFile) {
-    var dName = app.desktopFile.replace(/\.desktop$/i, "");
-    rawList.push(dName);
+    rawList.push(app.desktopFile.replace(/\.desktop$/i, ""));
   }
-  if (app.name) {
-    rawList.push(app.name);
-  }
+  if (app.name) rawList.push(app.name);
 
   var slugs = {};
   for (var i = 0; i < rawList.length; i++) {
@@ -135,11 +126,53 @@ function parseScanOutput(stdoutText, home, safeHelper) {
   return items;
 }
 
+// #18 Quick file/directory preview before purging
+function buildPreviewCommand(targetPath, home, safeHelper) {
+  var safe = getSafe(safeHelper);
+  var check = safe.validateLeftoverPath ? safe.validateLeftoverPath(targetPath, home) : { valid: false };
+  if (!check.valid) return null;
+  var esc = safe.shellEscape ? safe.shellEscape(check.normalized) : ("'" + check.normalized + "'");
+  var script = 'p=' + esc + '; if [ -d "$p" ]; then ls -la "$p" 2>/dev/null | head -n 30; elif [ -f "$p" ]; then head -n 30 "$p" 2>/dev/null; fi';
+  return ["bash", "-c", script];
+}
+
+// #17 Orphaned user dotfiles scanner (folders in ~/.cache & ~/.config with no matching installed package)
+function buildOrphanDotfilesScanScript(home, safeHelper) {
+  var safe = getSafe(safeHelper);
+  var escapedHome = safe.shellEscape ? safe.shellEscape(safe.normalizePath(home)) : ("'" + home + "'");
+  var script = [
+    'home=' + escapedHome,
+    'declare -A pkgset=()',
+    'for p in $(pacman -Qq 2>/dev/null | tr "[:upper:]" "[:lower:]" | sed "s/-bin$//;s/-git$//"); do',
+    '  pkgset["$p"]=1',
+    '  pkgset["${p//[-_]/}"]=1',
+    'done',
+    'for sys in mesa_shader_cache mesa_shader_cache_db fontconfig yay paru pip go-build bravesoftware chromium mozilla nvidia qtshadercache qtshadercache-x86_64-little_endian-lp64 gstreamer-1.0 ibusibus-table trash thumbnails waldseelen.omapp omapp omarchy hypr quickshell dconf gtk-3.0 gtk-4.0 pulse systemd xsettingsd mimeapps.list; do',
+    '  pkgset["$sys"]=1',
+    'done',
+    'for d in "$home/.cache"/* "$home/.config"/*; do',
+    '  [ -d "$d" ] || continue',
+    '  [ -L "$d" ] && continue',
+    '  bn=$(basename "$d" | tr "[:upper:]" "[:lower:]")',
+    '  bn_clean="${bn//[-_]/}"',
+    '  if [ -z "${pkgset[$bn]}" ] && [ -z "${pkgset[$bn_clean]}" ]; then',
+    '    sz=$(du -sb "$d" 2>/dev/null | cut -f1)',
+    '    if [ "${sz:-0}" -gt 4096 ]; then',
+    '      echo -e "$d\\t$sz"',
+    '    fi',
+    '  fi',
+    'done'
+  ].join("\n");
+  return ["bash", "-c", script];
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     generateCandidateSlugs: generateCandidateSlugs,
     getCategoryForPath: getCategoryForPath,
     buildScanScript: buildScanScript,
-    parseScanOutput: parseScanOutput
+    parseScanOutput: parseScanOutput,
+    buildPreviewCommand: buildPreviewCommand,
+    buildOrphanDotfilesScanScript: buildOrphanDotfilesScanScript
   };
 }

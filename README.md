@@ -1,76 +1,68 @@
-# OMAPP (Omarchy App Manager & Deep Uninstaller)
+# OMAPP — Omarchy App Manager, Task Manager, Services & Deep Cleaner
 
-Native Quickshell overlay application manager, live process task manager, and deep uninstaller for Omarchy and Arch Linux. Track installed apps, package sizes, versions, update dates, running processes, and cleanly purge residual configurations and caches.
+Native Quickshell overlay and bar widget for Omarchy and Arch Linux. Manage installed packages (`pacman`, AUR, Flatpak, AppImage, Web Apps), monitor real-time CPU/GPU/RAM/Disk I/O per process, control systemd startup services, and deeply purge residual user dotfiles with automatic safety backups.
 
 ![OMAPP Preview](preview.png)
 
 ---
 
-## Highlights
+## Features
 
-- **Complete Inventory**: Aggregates Desktop GUI applications, native Arch packages (`pacman`), AUR packages (`yay`), and Web Apps / PWAs into a single unified manager.
-- **Fast Search & Sorting**: Instant search across names, packages, binaries, and descriptions. Sort by total disk footprint, install date, update date, or name.
-- **Native Deep Cleaner**:
-  - **Process Protection**: Automatically detects if an application is running and offers graceful termination before removal.
-  - **Reverse Dependency Warning**: Alerts you if other installed packages depend on the application before you uninstall.
-  - **Clean Package Removal**: Removes the system package non-interactively via pacman (`-Rns`).
-  - **Residual File Hunter**: Deep scans `~/.config`, `~/.local/share`, `~/.cache`, `~/.local/state`, autostart entries, and dotdirs for leftover files.
-  - **Interactive Checklist**: Review found leftovers with path and disk size before permanent deletion.
-  - **Safety Net**: Automatically creates a timestamped config snapshot in `~/.local/share/omapp/backups/` before deleting.
-  - **Orphan Janitor**: Detects and prunes unneeded orphan dependencies (`pacman -Qtdq`) created by the removal.
-- **System Janitor Tab**: Dedicated 1-click cleaner for Orphan Dependencies, Pacman Package Cache (`paccache -r`), and AUR Yay Cache.
-- **Session Sudo Caching**: Authenticates administrator credentials once via password prompt and keeps the session active with an automated keepalive loop.
+- **Applications & Package Manager (`Apps` Tab)**:
+  - Unified inventory across native Arch (`pacman`), AUR (`yay`), Flatpak, AppImage (`~/Applications`), and Web Apps.
+  - Per-application **User Data Footprint** (`~/.config`, `~/.cache`, `~/.local/share`) alongside binary size.
+  - Multi-select checkboxes for **Batch Uninstall**, **Pin to Top**, and **Unused (>30d)** package filtering.
+  - Deep package inspector with `pacman -Ql` file viewer, `pactree` dependency tree, and 1-click cached version **Downgrade**.
+  - **Core Package Guard** preventing accidental removal of critical system packages (`linux`, `systemd`, `hyprland`, `quickshell`, `omarchy`).
+- **Task Manager Pro (`Tasks` Tab)**:
+  - Windows Task Manager style clickable column headers (`Process Name`, `PID`, `CPU`, `GPU`, `RAM`, `Disk`).
+  - Hybrid GPU tracking combining NVIDIA (`nvidia-smi`) and Linux DRM `/proc/<pid>/fdinfo` engine % + VRAM/GTT memory.
+  - **Group Apps** mode collapsing multi-process apps (e.g. `brave (12)`) with aggregated resource totals.
+  - Process **Freeze / Resume** (`SIGSTOP` / `SIGCONT`), **Priority (`renice`)**, **CPU Affinity**, **Listening Ports (`ss`)**, and **Live PID Journal Logs**.
+- **Startup & Services (`Services` Tab)**:
+  - Manage `systemctl --user` units, system daemons, Hyprland `exec-once` rules, and `~/.config/autostart/*.desktop` entries.
+  - **Boot Impact Analysis** powered by `systemd-analyze blame` (`High`, `Medium`, `Low` ms) and live unit journal logs.
+- **System Janitor & Backup Restore (`Janitor` Tab)**:
+  - 8-card storage reclamation grid: Orphan Packages, Pacman Cache, AUR Cache, Systemd Journal Vacuum, Developer Caches (`npm`, `pip`, `cargo`, `go`, `gradle`), Safe Browser Caches, Docker Prune, and Broken Symlinks / `.pacnew`.
+  - **Orphaned Dotfiles Scanner** and 1-click `.tar.gz` **Backup Restore** from `~/.local/share/omapp/backups/`.
+- **Omarchy Top-Bar Widget**:
+  - Live `CPU % · RAM GiB` bar indicator (`OmappBarWidget.qml`) that summons OMAPP directly to the Task Manager on click.
 
 ---
 
-## Installation
-
-Install using the Omarchy plugin manager:
+## Installation & CLI Usage
 
 ```bash
 omarchy plugin add https://github.com/waldseelen/omarchy-omapp.git --enable
 ```
 
-To remove:
+Summon or toggle from CLI or keybindings:
 
 ```bash
-omarchy plugin remove waldseelen.omapp
+omapp           # Toggle OMAPP overlay
+omapp apps      # Open directly to Applications tab
+omapp tasks     # Open directly to Task Manager tab
+omapp services  # Open directly to Startup & Services tab
+omapp janitor   # Open directly to System Janitor tab
 ```
-
-### Prerequisites
-
-The following tools should be present on your Omarchy / Arch system:
-
-- Quickshell with Wayland / LayerShell support (`omarchy-shell`)
-- Standard Arch Linux package manager (`pacman`)
-- Standard core utilities (`du`, `tar`, `ps`)
 
 ---
 
-## Keybindings
+## Keyboard Shortcuts
 
 | Keybinding | Action |
 | :--- | :--- |
 | `SUPER + Ç` | Toggle OMAPP overlay |
-| `↓` / `J` | Select next application |
-| `↑` / `K` | Select previous application |
-| `/` or `Ctrl + F` | Focus search bar |
-| `Tab` | Switch category tabs (All, Desktop, CLI/System, AUR, Web Apps, Large) |
-| `Del` or `U` | Start Deep Uninstall workflow |
-| `Enter` | Inspect application details |
-| `Esc` | Close active dialog or exit OMAPP |
-
----
-
-## Security & Safety Barriers
-
-Permanent deletion of user files requires ironclad safety guarantees:
-
-1. **System Path Blacklist**: Strictly refuses to target system roots (`/`, `/etc`, `/usr`, `/var`, `/home`, `/root`) or user home root (`~`).
-2. **Protected Config Shield**: Never touches essential desktop configuration directories (`~/.config/hypr`, `~/.config/omarchy`, `~/.config/ghostty`, `~/.bashrc`, `~/.zshrc`, `~/.gitconfig`).
-3. **Directory Depth Guard**: Only accepts paths with depth >= 2 relative to `$HOME` (e.g. `~/.config/appname`), preventing accidental parent directory deletion.
-4. **Zero Argv Credential Leaks**: Administrator passwords and commands are streamed strictly through kernel standard input (`sudo -S -v`) and never exposed in `argv` or `/proc/<pid>/cmdline`.
-5. **Pre-Purge Snapshots**: Saves a `.tar.gz` archive of residual files to `~/.local/share/omapp/backups/` prior to unlinking.
+| `1` / `2` / `3` / `4` | Switch between `Apps`, `Tasks`, `Services`, and `Janitor` tabs |
+| `↑` / `↓` or `J` / `K` | Navigate rows |
+| `/` | Focus search / filter input |
+| `Space` | Toggle batch selection checkbox (`Apps` tab) |
+| `P` | Pin / Unpin selected application or process to top |
+| `G` | Toggle Group by Application (`Tasks` tab) |
+| `F` | Freeze (`SIGSTOP`) / Resume (`SIGCONT`) selected process (`Tasks` tab) |
+| `Del` or `U` | Deep Uninstall (`Apps`) or End Task (`Tasks`) |
+| `Right-Click` | Open quick context action menu |
+| `Esc` | Close active popup/modal or exit OMAPP |
 
 ---
 

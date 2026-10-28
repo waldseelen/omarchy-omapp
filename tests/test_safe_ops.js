@@ -65,4 +65,16 @@ const purge = SafeOps.buildPurgeCommand(["/home/hp/.config/obsidian", "/home/hp"
 assert.strictEqual(purge.validPaths.length, 1);
 assert.strictEqual(purge.command, "rm -rf -- '/home/hp/.config/obsidian'");
 
+// Test #20 Core package lock
+assert.strictEqual(SafeOps.isProtectedCorePackage("hyprland"), true);
+assert.strictEqual(SafeOps.isProtectedCorePackage("quickshell"), true);
+assert.strictEqual(SafeOps.isProtectedCorePackage("linux-omarchy"), true);
+assert.strictEqual(SafeOps.isProtectedCorePackage("obsidian"), false);
+
+// Test #16 Backup restore validation
+const restoreValid = SafeOps.buildRestoreBackupCommand("/home/hp/.local/share/omapp/backups/obsidian-20261028.tar.gz", mockHome);
+assert.deepStrictEqual(restoreValid, ["tar", "-xzf", "/home/hp/.local/share/omapp/backups/obsidian-20261028.tar.gz", "-P"]);
+assert.strictEqual(SafeOps.buildRestoreBackupCommand("/etc/passwd", mockHome), null);
+assert.strictEqual(SafeOps.buildRestoreBackupCommand("/home/hp/.local/share/omapp/backups/../evil.tar.gz", mockHome), null);
+
 console.log("SafeOps tests passed! ✅");

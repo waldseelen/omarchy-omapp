@@ -1,4 +1,4 @@
-// Sorter.js — Category filtering, text searching, and column-header sorting for OMAPP
+// Sorter.js — Category filtering (#12, #15), text searching, column-header sorting, and pinned priority (#30)
 
 function filterItems(items, category, query) {
   if (!items || !Array.isArray(items)) return [];
@@ -6,7 +6,6 @@ function filterItems(items, category, query) {
   var q = (query || "").trim().toLowerCase();
 
   return items.filter(function(item) {
-    // 1. Category filter
     if (cat === "desktop") {
       if (!item.isDesktop || item.isWebApp) return false;
     } else if (cat === "system") {
@@ -15,11 +14,14 @@ function filterItems(items, category, query) {
       if (!item.isAur && item.category !== "aur") return false;
     } else if (cat === "webapp") {
       if (!item.isWebApp && item.category !== "webapp") return false;
+    } else if (cat === "flatpak") {
+      if (item.category !== "flatpak" && item.category !== "appimage") return false;
     } else if (cat === "large") {
       if ((item.size || 0) < 100 * 1024 * 1024) return false;
+    } else if (cat === "unused") {
+      if (!item.isUnused) return false;
     }
 
-    // 2. Query filter
     if (q.length > 0) {
       var nameMatch = item.name && item.name.toLowerCase().indexOf(q) !== -1;
       var pkgMatch = item.pkg && item.pkg.toLowerCase().indexOf(q) !== -1;
@@ -34,16 +36,26 @@ function filterItems(items, category, query) {
   });
 }
 
-function sortItems(items, sortBy, sortOrder) {
+function sortItems(items, sortBy, sortOrder, pinnedMap) {
   if (!items || !Array.isArray(items)) return [];
   var mode = sortBy || "size";
   var isAsc = sortOrder === "asc";
+  var pins = (pinnedMap && typeof pinnedMap === "object") ? pinnedMap : {};
   var copy = items.slice(0);
 
   copy.sort(function(a, b) {
+    // Pinned items (#30) always float to top
+    var aPin = !!(pins[a.pkg] || pins[a.id] || a.pinned);
+    var bPin = !!(pins[b.pkg] || pins[b.id] || b.pinned);
+    if (aPin !== bPin) return aPin ? -1 : 1;
+
     var diff = 0;
     if (mode === "size") {
       diff = (a.size || 0) - (b.size || 0);
+    } else if (mode === "userdata") {
+      diff = (a.userDataBytes || 0) - (b.userDataBytes || 0);
+    } else if (mode === "total") {
+      diff = (a.totalFootprintBytes || a.size || 0) - (b.totalFootprintBytes || b.size || 0);
     } else if (mode === "name") {
       var aName = (a.name || a.pkg || "").toLowerCase();
       var bName = (b.name || b.pkg || "").toLowerCase();
@@ -66,7 +78,7 @@ function sortItems(items, sortBy, sortOrder) {
       diff = aUp - bUp;
     }
 
-    if (mode === "size" || mode === "date" || mode === "update") {
+    if (mode === "size" || mode === "userdata" || mode === "total" || mode === "date" || mode === "update") {
       return isAsc ? diff : -diff;
     }
 
