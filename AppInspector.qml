@@ -1,9 +1,10 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import qs.Commons
 import qs.Ui
 
-Rectangle {
+BorderSurface {
   id: inspectorRoot
 
   property var appItem: null
@@ -18,9 +19,8 @@ Rectangle {
   signal openUrlRequested(string url)
 
   radius: Style.cornerRadius
-  color: Util.alpha(Color.menu.selectedBackground, 0.12)
-  border.width: 1
-  border.color: Util.alpha(Color.menu.border, 0.3)
+  color: Style.normalFill
+  borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
   clip: true
 
   function resolveIconSource(iconName) {
@@ -50,44 +50,48 @@ Rectangle {
     return Quickshell.iconPath("application-x-executable", true);
   }
 
-  // Empty State
   Item {
     anchors.fill: parent
     visible: !inspectorRoot.appItem
 
     Column {
       anchors.centerIn: parent
-      spacing: Style.space(12)
+      spacing: Style.space(10)
 
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
-        text: "📦"
-        font.pixelSize: Style.space(36)
-        opacity: 0.6
+        textFormat: Text.PlainText
+        text: "󰏖"
+        color: Color.muted
+        font.family: Style.font.family
+        font.pixelSize: Style.font.display
       }
 
       Text {
         anchors.horizontalCenter: parent.horizontalCenter
+        textFormat: Text.PlainText
         text: "Select an application to inspect"
-        color: Util.alpha(Color.menu.text, 0.45)
+        color: Color.muted
         font.family: Style.font.family
-        font.pixelSize: Style.font.body ? Style.font.body : 13
+        font.pixelSize: Style.font.body
       }
     }
   }
 
-  // Active Inspector Content
   Flickable {
     anchors.fill: parent
-    anchors.margins: Style.space(14)
+    anchors.margins: Style.space(16)
     visible: !!inspectorRoot.appItem
     contentHeight: contentCol.implicitHeight
     boundsBehavior: Flickable.StopAtBounds
+    pixelAligned: true
+
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
     Column {
       id: contentCol
       width: parent.width
-      spacing: Style.space(12)
+      spacing: Style.space(14)
 
       // Header: App Icon + Titles
       Row {
@@ -98,22 +102,25 @@ Rectangle {
           width: Style.space(48)
           height: Style.space(48)
 
-          Rectangle {
+          BorderSurface {
             anchors.fill: parent
-            radius: Style.space(8)
-            color: Util.alpha(Color.menu.selectedBackground, 0.3)
+            radius: Style.cornerRadius
+            color: Style.hoverFill
             visible: inspectorIconImg.status !== Image.Ready
 
             Text {
               anchors.centerIn: parent
+              textFormat: Text.PlainText
               text: {
-                if (!inspectorRoot.appItem) return "📦";
-                if (inspectorRoot.appItem.category === "aur") return "⚡";
-                if (inspectorRoot.appItem.category === "webapp") return "🌐";
-                if (inspectorRoot.appItem.category === "system") return "⚙️";
-                return "📦";
+                if (!inspectorRoot.appItem) return "󰏖";
+                if (inspectorRoot.appItem.category === "aur") return "󰣇";
+                if (inspectorRoot.appItem.category === "webapp") return "󰖟";
+                if (inspectorRoot.appItem.category === "system") return "󰆍";
+                return "󰏖";
               }
-              font.pixelSize: Style.space(22)
+              color: Color.accent
+              font.family: Style.font.family
+              font.pixelSize: Style.font.iconLarge
             }
           }
 
@@ -132,334 +139,194 @@ Rectangle {
         Column {
           width: parent.width - Style.space(60)
           spacing: Style.space(3)
-          clip: true
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
             text: inspectorRoot.appItem ? (inspectorRoot.appItem.name || inspectorRoot.appItem.pkg) : ""
             color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.heading ? Style.font.heading : 15
-            font.weight: Font.Bold
+            font.pixelSize: Style.font.heading
+            font.bold: true
             elide: Text.ElideRight
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
-            text: inspectorRoot.appItem ? (inspectorRoot.appItem.pkg + " " + inspectorRoot.appItem.version) : ""
-            color: Util.alpha(Color.menu.text, 0.6)
+            text: inspectorRoot.appItem ? (inspectorRoot.appItem.pkg + (inspectorRoot.appItem.version ? " • " + inspectorRoot.appItem.version : "")) : ""
+            color: Color.muted
             font.family: Style.font.family
-            font.pixelSize: Style.font.caption ? Style.font.caption : 11
+            font.pixelSize: Style.font.bodySmall
             elide: Text.ElideRight
           }
 
-          // Process status badge
           Row {
             spacing: Style.space(6)
 
             Rectangle {
               anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(7)
-              height: Style.space(7)
+              width: Style.space(6)
+              height: Style.space(6)
               radius: width / 2
-              color: inspectorRoot.isRunning ? "#4ade80" : Util.alpha(Color.menu.text, 0.3)
+              color: inspectorRoot.isRunning ? Color.accent : Color.muted
             }
 
             Text {
+              textFormat: Text.PlainText
               text: inspectorRoot.isRunning ? ("Running" + (inspectorRoot.runningPid ? " (PID " + inspectorRoot.runningPid + ")" : "")) : "Stopped"
-              color: inspectorRoot.isRunning ? "#86efac" : Util.alpha(Color.menu.text, 0.5)
+              color: inspectorRoot.isRunning ? Color.accent : Color.muted
               font.family: Style.font.family
-              font.pixelSize: Style.space(10)
+              font.pixelSize: Style.font.caption
             }
           }
         }
       }
 
-      // Action Buttons Flow (Automatically wraps onto next line without clipping!)
+      // Action Buttons using native qs.Ui.Button
       Flow {
         width: parent.width
         spacing: Style.space(8)
 
-        // Deep Uninstall Button (Primary Action)
-        Rectangle {
-          height: Style.space(30)
-          width: unText.implicitWidth + Style.space(20)
-          radius: Style.space(6)
-          color: Util.alpha("#ef4444", 0.25)
-          border.width: 1
-          border.color: unMouse.containsMouse ? "#ef4444" : Util.alpha("#ef4444", 0.5)
-
-          Row {
-            anchors.centerIn: parent
-            spacing: Style.space(5)
-
-            Text { text: "🗑️"; font.pixelSize: Style.space(11) }
-            Text {
-              id: unText
-              text: "Deep Uninstall"
-              color: "#fca5a5"
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-              font.weight: Font.Bold
-            }
-          }
-
-          MouseArea {
-            id: unMouse
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            hoverEnabled: true
-            onClicked: inspectorRoot.uninstallRequested(inspectorRoot.appItem)
-          }
+        Button {
+          bordered: true
+          iconText: "󰩺"
+          text: "Deep Uninstall"
+          foreground: Color.urgent
+          accent: Color.urgent
+          background: Util.alpha(Color.urgent, Style.normalFillAlpha)
+          onClicked: inspectorRoot.uninstallRequested(inspectorRoot.appItem)
         }
 
-        // Kill Process Button (Visible when running)
-        Rectangle {
+        Button {
           visible: inspectorRoot.isRunning
-          height: Style.space(30)
-          width: killText.implicitWidth + Style.space(18)
-          radius: Style.space(6)
-          color: Util.alpha("#f97316", 0.2)
-          border.width: 1
-          border.color: Util.alpha("#f97316", 0.4)
-
-          Row {
-            anchors.centerIn: parent
-            spacing: Style.space(5)
-
-            Text { text: "⚡"; font.pixelSize: Style.space(11) }
-            Text {
-              id: killText
-              text: "Kill Process"
-              color: "#fdba74"
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-              font.weight: Font.DemiBold
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: inspectorRoot.killRequested(inspectorRoot.appItem)
-          }
+          bordered: true
+          iconText: "󰅙"
+          text: "Stop Process"
+          foreground: Color.urgent
+          accent: Color.urgent
+          onClicked: inspectorRoot.killRequested(inspectorRoot.appItem)
         }
 
-        // Launch App Button
-        Rectangle {
+        Button {
           visible: inspectorRoot.appItem ? inspectorRoot.appItem.isDesktop : false
-          height: Style.space(30)
-          width: launchText.implicitWidth + Style.space(18)
-          radius: Style.space(6)
-          color: Util.alpha(Color.accent, 0.2)
-          border.width: 1
-          border.color: Util.alpha(Color.accent, 0.4)
-
-          Row {
-            anchors.centerIn: parent
-            spacing: Style.space(5)
-
-            Text { text: "🚀"; font.pixelSize: Style.space(11) }
-            Text {
-              id: launchText
-              text: "Launch"
-              color: Color.accent
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-              font.weight: Font.DemiBold
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: inspectorRoot.launchRequested(inspectorRoot.appItem)
-          }
+          bordered: true
+          iconText: "󰐊"
+          text: "Launch"
+          foreground: Color.accent
+          accent: Color.accent
+          onClicked: inspectorRoot.launchRequested(inspectorRoot.appItem)
         }
 
-        // Open Config Folder Button
-        Rectangle {
-          height: Style.space(30)
-          width: cfgText.implicitWidth + Style.space(16)
-          radius: Style.space(6)
-          color: Util.alpha(Color.menu.selectedBackground, 0.2)
-          border.width: 1
-          border.color: Util.alpha(Color.menu.border, 0.3)
-
-          Row {
-            anchors.centerIn: parent
-            spacing: Style.space(5)
-
-            Text { text: "📁"; font.pixelSize: Style.space(11) }
-            Text {
-              id: cfgText
-              text: "Config"
-              color: Color.menu.text
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: inspectorRoot.openConfigRequested(inspectorRoot.appItem)
-          }
+        Button {
+          bordered: true
+          iconText: "󰉋"
+          text: "Config"
+          foreground: Color.menu.text
+          accent: Color.accent
+          onClicked: inspectorRoot.openConfigRequested(inspectorRoot.appItem)
         }
       }
 
-      // Required By Dependency Warning Badge
-      Rectangle {
-        visible: inspectorRoot.appItem && inspectorRoot.appItem.requiredBy && inspectorRoot.appItem.requiredBy !== "None"
+      // Required By Dependency Warning Box
+      BorderSurface {
+        visible: !!(inspectorRoot.appItem && inspectorRoot.appItem.requiredBy && inspectorRoot.appItem.requiredBy !== "None")
         width: parent.width
-        height: reqCol.implicitHeight + Style.space(14)
-        radius: Style.space(6)
-        color: Util.alpha("#f59e0b", 0.15)
-        border.width: 1
-        border.color: Util.alpha("#f59e0b", 0.4)
+        implicitHeight: reqCol.implicitHeight + Style.space(16)
+        height: implicitHeight
+        radius: Style.cornerRadius
+        color: Util.alpha(Color.urgent, Style.normalFillAlpha)
+        borderSpec: Border.controlSpec("normal", Color.urgent, Color.urgent)
 
         Column {
           id: reqCol
           anchors.fill: parent
           anchors.margins: Style.space(8)
-          spacing: Style.space(3)
+          spacing: Style.space(4)
 
-          Row {
-            spacing: Style.space(6)
-            Text { text: "⚠️"; font.pixelSize: Style.space(11) }
-            Text {
-              text: "Other packages depend on this!"
-              color: "#fcd34d"
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-              font.weight: Font.Bold
-            }
+          Text {
+            textFormat: Text.PlainText
+            text: "󰀦 Required by other packages"
+            color: Color.urgent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
           }
 
           Text {
+            textFormat: Text.PlainText
             width: parent.width
-            text: "Required By: " + (inspectorRoot.appItem ? inspectorRoot.appItem.requiredBy : "")
-            color: Util.alpha("#fcd34d", 0.85)
+            text: inspectorRoot.appItem ? inspectorRoot.appItem.requiredBy : ""
+            color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.space(10)
+            font.pixelSize: Style.font.caption
             wrapMode: Text.Wrap
           }
         }
       }
 
-      // App Description
       Text {
+        textFormat: Text.PlainText
+        visible: !!(inspectorRoot.appItem && inspectorRoot.appItem.description)
         width: parent.width
         text: inspectorRoot.appItem ? inspectorRoot.appItem.description : ""
-        color: Util.alpha(Color.menu.text, 0.75)
+        color: Color.menu.text
         font.family: Style.font.family
-        font.pixelSize: Style.space(11)
+        font.pixelSize: Style.font.bodySmall
         wrapMode: Text.Wrap
       }
 
-      // Divider
-      Rectangle {
-        width: parent.width
-        height: 1
-        color: Util.alpha(Color.menu.border, 0.25)
+      PanelSeparator {
+        foreground: Color.menu.text
       }
 
-      // Metadata Table (Strictly bounded 2-column layout)
+      // Metadata Table
       Column {
         width: parent.width
-        spacing: Style.space(6)
+        spacing: Style.space(8)
 
         Row {
           width: parent.width
-          Text { width: Style.space(90); text: "Size:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-          Text {
-            width: parent.width - Style.space(90)
-            text: inspectorRoot.appItem ? inspectorRoot.appItem.sizeFormatted : "-"
-            color: Color.menu.text
-            font.pixelSize: Style.space(11)
-            font.weight: Font.DemiBold
-          }
+          Text { textFormat: Text.PlainText; width: Style.space(110); text: "Installed Size"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; width: parent.width - Style.space(110); text: inspectorRoot.appItem ? inspectorRoot.appItem.sizeFormatted : "-"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; font.bold: true }
         }
 
         Row {
           width: parent.width
-          Text { width: Style.space(90); text: "Install Date:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-          Text {
-            width: parent.width - Style.space(90)
-            text: inspectorRoot.appItem && inspectorRoot.appItem.installDate ? inspectorRoot.appItem.installDate : "Unknown"
-            color: Color.menu.text
-            font.pixelSize: Style.space(11)
-            elide: Text.ElideRight
-          }
+          Text { textFormat: Text.PlainText; width: Style.space(110); text: "Install Date"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; width: parent.width - Style.space(110); text: inspectorRoot.appItem && inspectorRoot.appItem.installDate ? inspectorRoot.appItem.installDate : "Unknown"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
         }
 
         Row {
           width: parent.width
-          Text { width: Style.space(90); text: "License:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-          Text {
-            width: parent.width - Style.space(90)
-            text: inspectorRoot.appItem && inspectorRoot.appItem.licenses ? inspectorRoot.appItem.licenses : "Custom"
-            color: Color.menu.text
-            font.pixelSize: Style.space(11)
-            elide: Text.ElideRight
-          }
+          Text { textFormat: Text.PlainText; width: Style.space(110); text: "License"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; width: parent.width - Style.space(110); text: inspectorRoot.appItem && inspectorRoot.appItem.licenses ? inspectorRoot.appItem.licenses : "Custom"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
         }
 
         Row {
           width: parent.width
-          Text { width: Style.space(90); text: "Packager:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-          Text {
-            width: parent.width - Style.space(90)
-            text: inspectorRoot.appItem && inspectorRoot.appItem.packager ? inspectorRoot.appItem.packager : "Local"
-            color: Color.menu.text
-            font.pixelSize: Style.space(11)
-            elide: Text.ElideRight
-          }
+          Text { textFormat: Text.PlainText; width: Style.space(110); text: "Packager"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; width: parent.width - Style.space(110); text: inspectorRoot.appItem && inspectorRoot.appItem.packager ? inspectorRoot.appItem.packager : "Local"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
         }
 
         Row {
           width: parent.width
-          Text { width: Style.space(90); text: "Binary:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
-          Text {
-            width: parent.width - Style.space(90)
-            text: inspectorRoot.appItem && inspectorRoot.appItem.exec ? inspectorRoot.appItem.exec : "-"
-            color: Color.menu.text
-            font.pixelSize: Style.space(11)
-            elide: Text.ElideMiddle
-          }
+          Text { textFormat: Text.PlainText; width: Style.space(110); text: "Executable"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+          Text { textFormat: Text.PlainText; width: parent.width - Style.space(110); text: inspectorRoot.appItem && inspectorRoot.appItem.exec ? inspectorRoot.appItem.exec : "-"; color: Color.menu.text; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; elide: Text.ElideMiddle }
         }
       }
 
-      // Website Link
-      Rectangle {
-        visible: inspectorRoot.appItem && !!inspectorRoot.appItem.url
-        height: Style.space(24)
+      Button {
+        visible: !!(inspectorRoot.appItem && inspectorRoot.appItem.url)
         width: parent.width
-        radius: Style.space(4)
-        color: urlMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.3) : "transparent"
-
-        Row {
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: Style.space(6)
-
-          Text { text: "🌐"; font.pixelSize: Style.space(11) }
-          Text {
-            width: contentCol.width - Style.space(24)
-            text: inspectorRoot.appItem ? inspectorRoot.appItem.url : ""
-            color: Color.accent
-            font.family: Style.font.family
-            font.pixelSize: Style.space(11)
-            elide: Text.ElideRight
-          }
-        }
-
-        MouseArea {
-          id: urlMouse
-          anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          hoverEnabled: true
-          onClicked: inspectorRoot.openUrlRequested(inspectorRoot.appItem.url)
-        }
+        leftAlign: true
+        bordered: true
+        iconText: "󰖟"
+        text: inspectorRoot.appItem && inspectorRoot.appItem.url ? inspectorRoot.appItem.url : ""
+        foreground: Color.accent
+        accent: Color.accent
+        fontSize: Style.font.caption
+        onClicked: inspectorRoot.openUrlRequested(inspectorRoot.appItem.url)
       }
     }
   }

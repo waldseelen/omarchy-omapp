@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -29,16 +30,19 @@ Item {
   property int selectedIndex: 0
   property string filterText: ""
   property string activeCategory: "all"
-  property string activeSort: "size"
+  property string activeSort: "size" // "size", "name", "category", "version", "date"
+  property string appSortDirection: "desc"
 
   // Task Manager State (Tasks Tab)
   property var rawTasks: []
   property var displayTasks: []
   property int selectedTaskIndex: 0
+  property int selectedTaskPid: -1
   property string taskCategory: "all"
   property string taskSort: "cpu"
   property string taskSortDirection: "desc"
   property string taskFilterText: ""
+  property var gpuStateMap: ({})
 
   // Sudo & Process State
   property bool sudoActive: false
@@ -58,17 +62,40 @@ Item {
   property string janitorPacmanCache: "Checking..."
   property string janitorYayCache: "Checking..."
 
+  // Persistent ListModels for zero-jitter, non-destructive ListView updates
+  ListModel { id: appListModel }
+  ListModel { id: taskListModel }
+
+  function toggleAppSort(column) {
+    var nextDir = "desc";
+    if (root.activeSort === column) {
+      nextDir = (root.appSortDirection === "desc") ? "asc" : "desc";
+    } else {
+      nextDir = (column === "name" || column === "category" || column === "version") ? "asc" : "desc";
+    }
+    root.activeSort = column;
+    root.appSortDirection = nextDir;
+    root.updateDisplayList();
+  }
+
+  function parseTabFromPayload(payloadJson) {
+    if (!payloadJson || payloadJson === "{}") return "";
+    try {
+      var data = JSON.parse(payloadJson);
+      if (data && data.tab) return String(data.tab);
+    } catch (e) {
+      if (payloadJson === "tasks" || payloadJson === "janitor" || payloadJson === "apps") {
+        return payloadJson;
+      }
+    }
+    return "";
+  }
+
   function open(payloadJson) {
     root.opened = true;
-    if (payloadJson) {
-      try {
-        var data = JSON.parse(payloadJson);
-        if (data.tab) root.activeTab = data.tab;
-      } catch (e) {
-        if (payloadJson === "tasks" || payloadJson === "janitor" || payloadJson === "apps") {
-          root.activeTab = payloadJson;
-        }
-      }
+    var requestedTab = parseTabFromPayload(payloadJson);
+    if (requestedTab) {
+      root.activeTab = requestedTab;
     }
     if (root.shell && root.shell.appLibrary && typeof root.shell.appLibrary.refreshIcons === "function") {
       root.shell.appLibrary.refreshIcons();
@@ -77,6 +104,7 @@ Item {
     root.refreshInventory();
     root.refreshProcessStatus();
     root.refreshTasks();
+    initialGpuSampleTimer.restart();
     Qt.callLater(function() {
       if (header) header.focusSearch();
     });
@@ -90,8 +118,9 @@ Item {
   }
 
   function toggle(payloadJson) {
+    var requestedTab = parseTabFromPayload(payloadJson);
     if (root.opened) {
-      if (payloadJson && payloadJson !== root.activeTab) {
+      if (requestedTab && requestedTab !== root.activeTab) {
         open(payloadJson);
       } else {
         close();
@@ -107,6 +136,7 @@ Item {
       root.refreshInventory();
       root.refreshProcessStatus();
       root.refreshTasks();
+      initialGpuSampleTimer.restart();
       Qt.callLater(function() {
         if (header) header.focusSearch();
       });
@@ -114,6 +144,16 @@ Item {
       root.sudoModalOpen = false;
       root.leftoverModalOpen = false;
       leftoverModal.isOpen = false;
+    }
+  }
+
+  // Second fast sample after 500ms so DRM GPU engine delta % populates immediately on open
+  Timer {
+    id: initialGpuSampleTimer
+    interval: 500
+    repeat: false
+    onTriggered: {
+      if (root.opened) root.refreshTasks();
     }
   }
 
@@ -127,10 +167,9 @@ Item {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
 
-    // Background Dimmer
     Rectangle {
       anchors.fill: parent
-      color: Util.alpha("#000000", 0.55)
+      color: Color.menu.scrim
 
       MouseArea {
         anchors.fill: parent
@@ -138,20 +177,18 @@ Item {
       }
     }
 
-    // Central Card Container
-    Rectangle {
+    BorderSurface {
       id: centerCard
       anchors.centerIn: parent
-      width: Math.min(parent.width - Style.space(48), Style.space(1100))
-      height: Math.min(parent.height - Style.space(48), Style.space(720))
+      width: Math.min(parent.width - Style.space(48), Style.space(1120))
+      height: Math.min(parent.height - Style.space(48), Style.space(740))
       radius: Style.cornerRadius
-      color: Color.menu.background || "#18181b"
-      border.width: 1
-      border.color: Util.alpha(Color.menu.border, 0.45)
+      color: Color.menu.background
+      borderSpec: Border.localOrSurfaceSpec("menu", "border", Color.menu.border, Color.foreground, Math.max(1, Style.normalBorderWidth))
 
       MouseArea {
         anchors.fill: parent
-        onClicked: {} // Catch clicks inside modal card
+        onClicked: {}
       }
 
       Column {
@@ -159,14 +196,12 @@ Item {
         anchors.margins: Style.space(18)
         spacing: Style.space(12)
 
-        // Header component
         OmappHeader {
           id: header
           width: parent.width
           filterText: root.activeTab === "tasks" ? root.taskFilterText : root.filterText
           activeTab: root.activeTab
           activeCategory: root.activeTab === "tasks" ? root.taskCategory : root.activeCategory
-          activeSort: root.activeTab === "tasks" ? root.taskSort : root.activeSort
           itemCount: root.activeTab === "tasks" ? root.displayTasks.length : root.displayItems.length
           sudoActive: root.sudoActive
 
@@ -184,6 +219,7 @@ Item {
             root.activeTab = tab;
             if (tab === "tasks") {
               root.refreshTasks();
+              initialGpuSampleTimer.restart();
             } else if (tab === "janitor") {
               root.refreshJanitorStats();
             } else {
@@ -201,16 +237,6 @@ Item {
             }
           }
 
-          onSortChanged: function(mode) {
-            if (root.activeTab === "tasks") {
-              root.taskSort = mode;
-              root.updateTaskDisplayList();
-            } else {
-              root.activeSort = mode;
-              root.updateDisplayList();
-            }
-          }
-
           onSudoClicked: {
             root.sudoErrorMessage = "";
             root.sudoModalOpen = true;
@@ -218,88 +244,224 @@ Item {
           }
         }
 
-        // Main View Area: 1. Apps Split View, 2. Tasks View, 3. Janitor View
+        // Main View Area
         Item {
           width: parent.width
           height: parent.height - header.height - Style.space(12)
 
-          // 1. Applications Split View (App List + Inspector)
+          // 1. Applications Split View (Column Header Table + AppInspector)
           Row {
             anchors.fill: parent
             spacing: Style.space(14)
             visible: root.activeTab === "apps"
 
-            // Left Pane: Scrollable List of Apps
-            Rectangle {
-              width: parent.width * 0.58
+            BorderSurface {
+              width: parent.width * 0.60
               height: parent.height
               radius: Style.cornerRadius
-              color: Util.alpha(Color.menu.selectedBackground, 0.08)
-              border.width: 1
-              border.color: Util.alpha(Color.menu.border, 0.3)
+              color: Style.normalFill
+              borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
               clip: true
 
-              ListView {
-                id: appListView
+              Column {
                 anchors.fill: parent
                 anchors.margins: Style.space(6)
-                model: root.displayItems
-                currentIndex: root.selectedIndex
                 spacing: Style.space(4)
-                pixelAligned: true
-                boundsBehavior: Flickable.StopAtBounds
-                flickableDirection: Flickable.VerticalFlick
-                highlightMoveDuration: 0
 
-                delegate: AppGridRow {
-                  shell: root.shell
-                  isSelected: index === root.selectedIndex
-                  appName: modelData.name
-                  appPkg: modelData.pkg
-                  appVersion: modelData.version
-                  appIcon: modelData.icon
-                  appCategory: modelData.category
-                  appSize: modelData.sizeFormatted
-                  appRunning: !!root.runningPids[modelData.pkg] || !!root.runningPids[modelData.name.toLowerCase()]
+                // Windows Task Manager Style Clickable Column Header Bar for Apps
+                BorderSurface {
+                  width: parent.width
+                  height: Style.space(30)
+                  radius: Style.cornerRadius
+                  color: Style.hoverFill
+                  borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
-                  onClicked: {
-                    root.selectedIndex = index;
+                  Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: Style.space(10)
+                    anchors.rightMargin: Style.space(10)
+                    spacing: Style.space(6)
+
+                    // Column 1: Application Name
+                    Item {
+                      height: parent.height
+                      width: Math.max(Style.space(120), parent.width - Style.space(236))
+
+                      Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
+                        text: "Application" + (root.activeSort === "name" ? (root.appSortDirection === "asc" ? " ▲" : " ▼") : "")
+                        color: root.activeSort === "name" ? Color.accent : (appNameHdrMouse.containsMouse ? Color.menu.text : Color.muted)
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
+
+                      MouseArea {
+                        id: appNameHdrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAppSort("name")
+                      }
+                    }
+
+                    // Column 2: Type / Category
+                    Item {
+                      height: parent.height
+                      width: Style.space(72)
+
+                      Text {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
+                        text: "Type" + (root.activeSort === "category" ? (root.appSortDirection === "asc" ? " ▲" : " ▼") : "")
+                        color: root.activeSort === "category" ? Color.accent : (appCatHdrMouse.containsMouse ? Color.menu.text : Color.muted)
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
+
+                      MouseArea {
+                        id: appCatHdrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAppSort("category")
+                      }
+                    }
+
+                    // Column 3: Version
+                    Item {
+                      height: parent.height
+                      width: Style.space(76)
+
+                      Text {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
+                        text: "Version" + (root.activeSort === "version" ? (root.appSortDirection === "asc" ? " ▲" : " ▼") : "")
+                        color: root.activeSort === "version" ? Color.accent : (appVerHdrMouse.containsMouse ? Color.menu.text : Color.muted)
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
+
+                      MouseArea {
+                        id: appVerHdrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAppSort("version")
+                      }
+                    }
+
+                    // Column 4: Size
+                    Item {
+                      height: parent.height
+                      width: Style.space(70)
+
+                      Text {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        textFormat: Text.PlainText
+                        text: "Size" + (root.activeSort === "size" ? (root.appSortDirection === "asc" ? " ▲" : " ▼") : "")
+                        color: root.activeSort === "size" ? Color.accent : (appSizeHdrMouse.containsMouse ? Color.menu.text : Color.muted)
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.bodySmall
+                        font.bold: true
+                      }
+
+                      MouseArea {
+                        id: appSizeHdrMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.toggleAppSort("size")
+                      }
+                    }
                   }
                 }
 
-                // Empty list state
-                Item {
-                  anchors.fill: parent
-                  visible: root.displayItems.length === 0
+                // App ListView bound to persistent appListModel
+                ListView {
+                  id: appListView
+                  width: parent.width
+                  height: parent.height - Style.space(34)
+                  model: appListModel
+                  currentIndex: root.selectedIndex
+                  spacing: Style.space(2)
+                  pixelAligned: true
+                  boundsBehavior: Flickable.StopAtBounds
+                  flickableDirection: Flickable.VerticalFlick
+                  flickDeceleration: 1500
+                  maximumFlickVelocity: 2500
+                  highlightMoveDuration: 0
+                  clip: true
 
-                  Column {
-                    anchors.centerIn: parent
-                    spacing: Style.space(10)
+                  ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                    Text {
-                      anchors.horizontalCenter: parent.horizontalCenter
-                      text: "🔍"
-                      font.pixelSize: Style.space(32)
-                      opacity: 0.5
+                  delegate: AppGridRow {
+                    required property int index
+                    required property string name
+                    required property string pkg
+                    required property string version
+                    required property string icon
+                    required property string category
+                    required property string sizeFormatted
+                    required property bool running
+
+                    shell: root.shell
+                    isSelected: index === root.selectedIndex
+                    appName: name
+                    appPkg: pkg
+                    appVersion: version
+                    appIcon: icon
+                    appCategory: category
+                    appSize: sizeFormatted
+                    appRunning: running
+
+                    onClicked: {
+                      root.selectedIndex = index;
                     }
+                  }
 
-                    Text {
-                      anchors.horizontalCenter: parent.horizontalCenter
-                      text: "No applications found"
-                      color: Util.alpha(Color.menu.text, 0.5)
-                      font.family: Style.font.family
-                      font.pixelSize: Style.font.body ? Style.font.body : 13
+                  Item {
+                    anchors.fill: parent
+                    visible: root.displayItems.length === 0
+
+                    Column {
+                      anchors.centerIn: parent
+                      spacing: Style.space(8)
+
+                      Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        textFormat: Text.PlainText
+                        text: "󰏖"
+                        color: Color.muted
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.display
+                      }
+
+                      Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        textFormat: Text.PlainText
+                        text: "No applications found"
+                        color: Color.muted
+                        font.family: Style.font.family
+                        font.pixelSize: Style.font.body
+                      }
                     }
                   }
                 }
               }
             }
 
-            // Right Pane: App Inspector Drawer
             AppInspector {
               id: inspector
               shell: root.shell
-              width: parent.width * 0.42 - Style.space(14)
+              width: parent.width * 0.40 - Style.space(14)
               height: parent.height
               appItem: (root.displayItems.length > 0 && root.selectedIndex >= 0 && root.selectedIndex < root.displayItems.length)
                 ? root.displayItems[root.selectedIndex] : null
@@ -334,6 +496,7 @@ Item {
             anchors.fill: parent
             visible: root.activeTab === "tasks"
             shell: root.shell
+            taskModel: taskListModel
             tasks: root.displayTasks
             selectedIndex: root.selectedTaskIndex
             activeCategory: root.taskCategory
@@ -341,6 +504,11 @@ Item {
             sortDirection: root.taskSortDirection
             filterText: root.taskFilterText
             sudoActive: root.sudoActive
+
+            onTaskSelected: function(idx, pid) {
+              root.selectedTaskIndex = idx;
+              root.selectedTaskPid = pid;
+            }
 
             onSortRequested: function(mode, direction) {
               root.taskSort = mode;
@@ -402,7 +570,6 @@ Item {
         }
       }
 
-      // Modals
       SudoPromptModal {
         id: sudoModal
         isOpen: root.sudoModalOpen
@@ -440,7 +607,6 @@ Item {
       }
     }
 
-    // Global Key Handling inside Panel
     Item {
       id: keyHandler
       focus: root.opened
@@ -465,7 +631,6 @@ Item {
           return;
         }
 
-        // Navigation keys
         if (!root.sudoModalOpen && !root.leftoverModalOpen) {
           if (root.activeTab === "apps") {
             if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
@@ -492,11 +657,15 @@ Item {
             if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers === Qt.NoModifier)) {
               if (root.selectedTaskIndex < root.displayTasks.length - 1) {
                 root.selectedTaskIndex++;
+                root.selectedTaskPid = root.displayTasks[root.selectedTaskIndex].pid;
+                taskView.positionAt(root.selectedTaskIndex);
               }
               event.accepted = true;
             } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_K && event.modifiers === Qt.NoModifier)) {
               if (root.selectedTaskIndex > 0) {
                 root.selectedTaskIndex--;
+                root.selectedTaskPid = root.displayTasks[root.selectedTaskIndex].pid;
+                taskView.positionAt(root.selectedTaskIndex);
               }
               event.accepted = true;
             } else if (event.key === Qt.Key_Delete || event.key === Qt.Key_U) {
@@ -517,7 +686,6 @@ Item {
   // Process Declarations & Background Workers
   // -------------------------------------------------------------
 
-  // 1. Inventory Scanner Process
   Process {
     id: inventoryProc
     command: Scanner.buildInventoryScanScript()
@@ -534,7 +702,6 @@ Item {
     }
   }
 
-  // 2. Sudo Status Check Process
   Process {
     id: sudoStatusProc
     command: SudoKeeper.getStatusCheckCommand()
@@ -546,7 +713,6 @@ Item {
     }
   }
 
-  // 3. Sudo Authentication via Stdin Process
   Process {
     id: sudoAuthProc
     command: SudoKeeper.getAuthCommand()
@@ -573,13 +739,11 @@ Item {
     }
   }
 
-  // 4. Sudo Keepalive Background Process
   Process {
     id: sudoKeepaliveProc
     command: ["bash", "-c", SudoKeeper.getKeepaliveScript(0)]
   }
 
-  // 5. Running Process Detector
   Process {
     id: procCheck
     command: ["bash", "-c", "ps -eo comm,pid --no-headers 2>/dev/null"]
@@ -602,11 +766,11 @@ Item {
           }
         }
         root.runningPids = pids;
+        root.updateDisplayList();
       }
     }
   }
 
-  // 6. Task Manager Live Process Scanner
   Process {
     id: taskScanProc
     command: TaskManager.buildProcessScanScript()
@@ -617,7 +781,7 @@ Item {
     onExited: function(exitCode, exitStatus) {
       if (exitCode === 0) {
         var user = Quickshell.env("USER") || "";
-        root.rawTasks = TaskManager.parseProcessOutput(taskScanOutput.text, user);
+        root.rawTasks = TaskManager.parseProcessOutput(taskScanOutput.text, user, root.gpuStateMap, Date.now());
         root.updateTaskDisplayList();
       }
     }
@@ -634,7 +798,6 @@ Item {
     }
   }
 
-  // 7. Package Uninstall Process
   Process {
     id: uninstallProc
     property var targetApp: null
@@ -646,14 +809,13 @@ Item {
         leftoverModal.statusMessage = "Scanning for residual configs and caches...";
         root.runLeftoverScan(uninstallProc.targetApp);
       } else {
-        root.sudoActive = false; // In case sudo credentials expired
+        root.sudoActive = false;
         leftoverModal.phase = 1;
         leftoverModal.statusMessage = "Package removal failed: " + (uninstallErr.text || "Check sudo permissions");
       }
     }
   }
 
-  // 8. Leftover Scan Process
   Process {
     id: leftoverScanProc
     property var targetApp: null
@@ -667,7 +829,6 @@ Item {
     }
   }
 
-  // 9. Leftover Purge Process (Backup then rm -rf)
   Process {
     id: leftoverPurgeProc
     onExited: function(exitCode, exitStatus) {
@@ -677,7 +838,6 @@ Item {
     }
   }
 
-  // 10. Orphan Package Detector
   Process {
     id: orphanCheckProc
     command: ["bash", "-c", "pacman -Qtdq 2>/dev/null || echo NO_ORPHANS"]
@@ -697,7 +857,6 @@ Item {
     }
   }
 
-  // 11. Orphan Pruner Process
   Process {
     id: orphanPruneProc
     command: SudoKeeper.buildOrphanPruneCommand()
@@ -708,7 +867,6 @@ Item {
     }
   }
 
-  // 12. Janitor Stats Process
   Process {
     id: janitorStatsProc
     command: [
@@ -736,7 +894,6 @@ Item {
     }
   }
 
-  // 13. Cache Cleaner Processes
   Process {
     id: pacmanCacheCleanProc
     command: SudoKeeper.buildCacheCleanCommand()
@@ -754,7 +911,7 @@ Item {
   }
 
   // -------------------------------------------------------------
-  // Helper Functions
+  // Helper Functions & In-Place ListModel Sync
   // -------------------------------------------------------------
 
   function checkSudoStatus() {
@@ -787,10 +944,63 @@ Item {
     }
   }
 
+  function syncAppModel(sorted) {
+    if (appListModel.count > sorted.length) {
+      appListModel.remove(sorted.length, appListModel.count - sorted.length);
+    }
+    for (var i = 0; i < sorted.length; i++) {
+      var item = sorted[i];
+      var isRun = !!root.runningPids[item.pkg] || !!(item.name && root.runningPids[item.name.toLowerCase()]);
+      var rowObj = {
+        name: String(item.name || item.pkg || ""),
+        pkg: String(item.pkg || ""),
+        version: String(item.version || ""),
+        icon: String(item.icon || "application-x-executable"),
+        category: String(item.category || "desktop"),
+        sizeFormatted: String(item.sizeFormatted || "0 B"),
+        running: isRun
+      };
+      if (i < appListModel.count) {
+        appListModel.set(i, rowObj);
+      } else {
+        appListModel.append(rowObj);
+      }
+    }
+  }
+
+  function syncTaskModel(sorted) {
+    if (taskListModel.count > sorted.length) {
+      taskListModel.remove(sorted.length, taskListModel.count - sorted.length);
+    }
+    for (var i = 0; i < sorted.length; i++) {
+      var t = sorted[i];
+      var rowObj = {
+        pid: Number(t.pid || 0),
+        name: String(t.name || ""),
+        user: String(t.user || ""),
+        cpu: Number(t.cpu || 0),
+        cpuFormatted: String(t.cpuFormatted || "0.0%"),
+        gpu: Number(t.gpu || 0),
+        gpuPercent: Number(t.gpuPercent || 0),
+        gpuMemMiB: Number(t.gpuMemMiB || 0),
+        gpuFormatted: String(t.gpuFormatted || "0.0%"),
+        rss: Number(t.rss || 0),
+        rssFormatted: String(t.rssFormatted || "0 B"),
+        isMine: Boolean(t.isMine)
+      };
+      if (i < taskListModel.count) {
+        taskListModel.set(i, rowObj);
+      } else {
+        taskListModel.append(rowObj);
+      }
+    }
+  }
+
   function updateDisplayList() {
     var filtered = Sorter.filterItems(root.rawItems, root.activeCategory, root.filterText);
-    var sorted = Sorter.sortItems(filtered, root.activeSort, "desc");
+    var sorted = Sorter.sortItems(filtered, root.activeSort, root.appSortDirection);
     root.displayItems = sorted;
+    syncAppModel(sorted);
     if (root.selectedIndex >= sorted.length) {
       root.selectedIndex = Math.max(0, sorted.length - 1);
     }
@@ -801,8 +1011,22 @@ Item {
     var filtered = TaskManager.filterTasks(root.rawTasks, root.taskFilterText, root.taskCategory, user);
     var sorted = TaskManager.sortTasks(filtered, root.taskSort, root.taskSortDirection);
     root.displayTasks = sorted;
+    syncTaskModel(sorted);
+
+    // Keep selected process locked by PID across live CPU/GPU/RAM sort ticks
+    if (root.selectedTaskPid > 0) {
+      for (var i = 0; i < sorted.length; i++) {
+        if (sorted[i].pid === root.selectedTaskPid) {
+          root.selectedTaskIndex = i;
+          return;
+        }
+      }
+    }
     if (root.selectedTaskIndex >= sorted.length) {
       root.selectedTaskIndex = Math.max(0, sorted.length - 1);
+    }
+    if (sorted.length > 0 && root.selectedTaskIndex >= 0) {
+      root.selectedTaskPid = sorted[root.selectedTaskIndex].pid;
     }
   }
 
@@ -830,7 +1054,6 @@ Item {
     leftoverModal.isOpen = true;
 
     if (app.category === "webapp" || !app.pkg) {
-      // Local web app or standalone desktop file: delete desktop file directly
       var deskCmd = "rm -f " + SafeOps.shellEscape(app.desktopFile ? (root.home + "/.local/share/applications/" + app.desktopFile) : "");
       uninstallProc.command = ["bash", "-c", deskCmd];
     } else {

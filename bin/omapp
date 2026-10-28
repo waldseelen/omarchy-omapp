@@ -1,2 +1,8 @@
 #!/bin/bash
-exec omarchy-shell shell toggle waldseelen.omapp "$@"
+if [[ "${1:-}" == "close" || "${1:-}" == "hide" ]]; then
+  exec omarchy-shell shell hide waldseelen.omapp
+elif [[ -n "${1:-}" ]]; then
+  exec omarchy-shell shell summon waldseelen.omapp "$1"
+else
+  exec omarchy-shell shell toggle waldseelen.omapp
+fi

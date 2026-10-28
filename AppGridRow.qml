@@ -3,7 +3,7 @@ import Quickshell
 import qs.Commons
 import qs.Ui
 
-Rectangle {
+CursorSurface {
   id: rowRoot
 
   property bool isSelected: false
@@ -19,15 +19,12 @@ Rectangle {
   signal clicked()
 
   width: ListView.view ? ListView.view.width : Style.space(400)
-  height: Style.space(52)
-  radius: Style.cornerRadius
-  color: isSelected
-    ? Util.alpha(Color.accent, 0.18)
-    : (rowMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent")
-  border.width: isSelected ? 1 : 0
-  border.color: isSelected ? Util.alpha(Color.accent, 0.45) : "transparent"
+  height: Style.space(44)
+  foreground: Color.menu.text
+  accent: Color.accent
+  current: isSelected
+  hasCursor: rowMouse.containsMouse
 
-  // Function to resolve icon with multi-level fallbacks
   function resolveIconSource(iconName) {
     if (!iconName || iconName.length === 0) {
       return Quickshell.iconPath("application-x-executable", true);
@@ -55,151 +52,155 @@ Rectangle {
     return Quickshell.iconPath("application-x-executable", true);
   }
 
-  // App Icon Box with Fallback Glyph
-  Item {
-    id: iconBox
-    anchors.left: parent.left
-    anchors.leftMargin: Style.space(12)
-    anchors.verticalCenter: parent.verticalCenter
-    width: Style.space(32)
-    height: Style.space(32)
-
-    // Fallback Glyph Container
-    Rectangle {
-      anchors.fill: parent
-      radius: Style.space(6)
-      color: Util.alpha(Color.menu.selectedBackground, 0.3)
-      visible: iconImg.status !== Image.Ready
-
-      Text {
-        anchors.centerIn: parent
-        text: {
-          if (rowRoot.appCategory === "aur") return "⚡";
-          if (rowRoot.appCategory === "webapp") return "🌐";
-          if (rowRoot.appCategory === "system") return "⚙️";
-          return "📦";
-        }
-        font.pixelSize: Style.space(14)
-      }
-    }
-
-    // App Icon
-    Image {
-      id: iconImg
-      anchors.fill: parent
-      sourceSize.width: Style.space(32) * Screen.devicePixelRatio
-      sourceSize.height: Style.space(32) * Screen.devicePixelRatio
-      fillMode: Image.PreserveAspectFit
-      asynchronous: true
-      source: rowRoot.resolveIconSource(rowRoot.appIcon)
-      visible: status === Image.Ready
-    }
-  }
-
-  // Right Meta Badges (Category & Size) - Right-anchored first to reserve width
   Row {
-    id: metaRow
-    anchors.right: parent.right
-    anchors.rightMargin: Style.space(12)
-    anchors.verticalCenter: parent.verticalCenter
-    spacing: Style.space(8)
+    anchors.fill: parent
+    anchors.leftMargin: Style.space(10)
+    anchors.rightMargin: Style.space(10)
+    spacing: Style.space(6)
 
-    // Category Badge
-    Rectangle {
-      anchors.verticalCenter: parent.verticalCenter
-      height: Style.space(20)
-      width: catText.implicitWidth + Style.space(12)
-      radius: Style.space(4)
-      color: {
-        if (rowRoot.appCategory === "aur") return Util.alpha("#a855f7", 0.25);
-        if (rowRoot.appCategory === "webapp") return Util.alpha("#06b6d4", 0.25);
-        if (rowRoot.appCategory === "system") return Util.alpha(Color.menu.border, 0.3);
-        return Util.alpha(Color.accent, 0.25);
+    // Column 1: Application Icon + Name + Package Name (Flexible width matching header)
+    Row {
+      height: parent.height
+      width: Math.max(Style.space(120), parent.width - Style.space(236))
+      spacing: Style.space(10)
+
+      Item {
+        width: Style.space(28)
+        height: Style.space(28)
+        anchors.verticalCenter: parent.verticalCenter
+
+        BorderSurface {
+          anchors.fill: parent
+          radius: Style.cornerRadius
+          color: Style.normalFill
+          visible: iconImg.status !== Image.Ready
+
+          Text {
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: {
+              if (rowRoot.appCategory === "aur") return "󰣇";
+              if (rowRoot.appCategory === "webapp") return "󰖟";
+              if (rowRoot.appCategory === "system") return "󰆍";
+              return "󰏖";
+            }
+            color: Color.accent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.icon
+          }
+        }
+
+        Image {
+          id: iconImg
+          anchors.fill: parent
+          sourceSize.width: Style.space(28) * Screen.devicePixelRatio
+          sourceSize.height: Style.space(28) * Screen.devicePixelRatio
+          fillMode: Image.PreserveAspectFit
+          asynchronous: true
+          source: rowRoot.resolveIconSource(rowRoot.appIcon)
+          visible: status === Image.Ready
+        }
       }
 
-      Text {
-        id: catText
-        anchors.centerIn: parent
-        text: {
-          if (rowRoot.appCategory === "aur") return "AUR";
-          if (rowRoot.appCategory === "webapp") return "Web App";
-          if (rowRoot.appCategory === "system") return "CLI";
-          return "Desktop";
+      Column {
+        width: parent.width - Style.space(38)
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(1)
+
+        Row {
+          width: parent.width
+          spacing: Style.space(6)
+
+          Text {
+            textFormat: Text.PlainText
+            width: Math.min(implicitWidth, parent.width - (rowRoot.appRunning ? Style.space(14) : 0))
+            text: rowRoot.appName || rowRoot.appPkg
+            color: rowRoot.isSelected ? Color.accent : Color.menu.text
+            font.family: Style.font.family
+            font.pixelSize: Style.font.body
+            font.bold: rowRoot.isSelected
+            elide: Text.ElideRight
+          }
+
+          Rectangle {
+            visible: rowRoot.appRunning
+            anchors.verticalCenter: parent.verticalCenter
+            width: Style.space(6)
+            height: Style.space(6)
+            radius: width / 2
+            color: Color.accent
+          }
         }
-        color: {
-          if (rowRoot.appCategory === "aur") return "#d8b4fe";
-          if (rowRoot.appCategory === "webapp") return "#67e8f9";
-          if (rowRoot.appCategory === "system") return Util.alpha(Color.menu.text, 0.7);
-          return Color.accent;
+
+        Text {
+          textFormat: Text.PlainText
+          width: parent.width
+          text: rowRoot.appPkg
+          color: Color.muted
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          elide: Text.ElideRight
         }
-        font.family: Style.font.family
-        font.pixelSize: Style.space(10)
-        font.weight: Font.Bold
       }
     }
 
-    // Size Label
-    Text {
-      anchors.verticalCenter: parent.verticalCenter
-      text: rowRoot.appSize
-      color: rowRoot.isSelected ? Color.menu.selectedText : Util.alpha(Color.menu.text, 0.75)
-      font.family: Style.font.family
-      font.pixelSize: Style.font.caption ? Style.font.caption : 11
-      font.weight: Font.DemiBold
-    }
-  }
-
-  // App Name & Package info (Strictly bounded between iconBox and metaRow)
-  Column {
-    id: textCol
-    anchors.left: iconBox.right
-    anchors.leftMargin: Style.space(12)
-    anchors.right: metaRow.left
-    anchors.rightMargin: Style.space(12)
-    anchors.verticalCenter: parent.verticalCenter
-    spacing: Style.space(2)
-    clip: true
-
-    // Top Title Row: Name + Running Indicator
+    // Column 2: Category / Type
     Item {
-      width: textCol.width
-      height: Math.max(nameText.implicitHeight, runningDot.height)
+      width: Style.space(72)
+      height: parent.height
 
-      Text {
-        id: nameText
-        anchors.left: parent.left
-        anchors.right: rowRoot.appRunning ? runningDot.left : parent.right
-        anchors.rightMargin: rowRoot.appRunning ? Style.space(6) : 0
+      BorderSurface {
         anchors.verticalCenter: parent.verticalCenter
-        text: rowRoot.appName || rowRoot.appPkg
-        color: rowRoot.isSelected ? Color.menu.selectedText : Color.menu.text
-        font.family: Style.font.family
-        font.pixelSize: Style.font.body ? Style.font.body : 13
-        font.weight: Font.Medium
-        elide: Text.ElideRight
-      }
-
-      // Running Dot Badge
-      Rectangle {
-        id: runningDot
-        visible: rowRoot.appRunning
         anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        width: Style.space(7)
-        height: Style.space(7)
-        radius: width / 2
-        color: "#4ade80"
+        height: Style.space(20)
+        width: catText.implicitWidth + Style.space(10)
+        radius: Style.cornerRadius
+        color: Style.normalFill
+        borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
+
+        Text {
+          id: catText
+          anchors.centerIn: parent
+          textFormat: Text.PlainText
+          text: {
+            if (rowRoot.appCategory === "aur") return "AUR";
+            if (rowRoot.appCategory === "webapp") return "WEB";
+            if (rowRoot.appCategory === "system") return "CLI";
+            return "APP";
+          }
+          color: rowRoot.appCategory === "aur" ? Color.accent : Color.menu.text
+          font.family: Style.font.family
+          font.pixelSize: Style.font.caption
+          font.bold: true
+        }
       }
     }
 
-    // Subtitle: Package Name + Version
+    // Column 3: Version
     Text {
-      width: textCol.width
-      text: rowRoot.appPkg + (rowRoot.appVersion ? " • " + rowRoot.appVersion : "")
-      color: rowRoot.isSelected ? Util.alpha(Color.menu.selectedText, 0.7) : Util.alpha(Color.menu.text, 0.55)
+      width: Style.space(76)
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: rowRoot.appVersion || "-"
+      color: Color.muted
       font.family: Style.font.family
-      font.pixelSize: Style.font.caption ? Style.font.caption : 11
+      font.pixelSize: Style.font.caption
+      horizontalAlignment: Text.AlignRight
       elide: Text.ElideRight
+    }
+
+    // Column 4: Size
+    Text {
+      width: Style.space(70)
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: rowRoot.appSize
+      color: rowRoot.isSelected ? Color.accent : Color.menu.text
+      font.family: Style.font.family
+      font.pixelSize: Style.font.bodySmall
+      font.bold: rowRoot.isSelected
+      horizontalAlignment: Text.AlignRight
+      elide: Text.ElideLeft
     }
   }
 

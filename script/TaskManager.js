@@ -1,4 +1,4 @@
-// TaskManager.js — Process monitoring, task termination, and executable locator for OMAPP
+// TaskManager.js — Process monitoring, hybrid GPU (DRM fdinfo + NVIDIA) tracking, task termination, and executable locator for OMAPP
 
 function buildProcessScanScript() {
   var script = [
@@ -7,7 +7,13 @@ function buildProcessScanScript() {
     'echo "===PS_END==="',
     'echo "===GPU_START==="',
     'nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null || true',
-    'echo "===GPU_END==="'
+    'echo "===GPU_END==="',
+    'echo "===DRM_START==="',
+    'drm_files=$(grep -l "^drm-client-id:" /proc/[0-9]*/fdinfo/* 2>/dev/null)',
+    'if [ -n "$drm_files" ]; then',
+    '  awk \'FNR==1 { if (cid != "") print pid "\\t" cid "\\t" vram "\\t" gtt "\\t" eng; split(FILENAME, a, "/"); pid=a[3]; cid=""; vram=0; gtt=0; eng=0 } /^drm-client-id:/ { cid=$2 } /^drm-memory-vram:/ { vram=$2 } /^drm-memory-gtt:/ { gtt=$2 } /^drm-engine-/ { eng+=$2 } END { if (cid != "") print pid "\\t" cid "\\t" vram "\\t" gtt "\\t" eng }\' $drm_files 2>/dev/null',
+    'fi',
+    'echo "===DRM_END==="'
   ].join("\n");
 
   return ["bash", "-c", script];
@@ -23,16 +29,19 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
-function parseProcessOutput(rawText, currentUser) {
+function parseProcessOutput(rawText, currentUser, prevGpuState, nowMs) {
   if (!rawText || typeof rawText !== "string") return [];
 
+  var tsNow = (typeof nowMs === "number" && nowMs > 0) ? nowMs : Date.now();
   var psStart = rawText.indexOf("===PS_START===");
   var psEnd = rawText.indexOf("===PS_END===");
   var gpuStart = rawText.indexOf("===GPU_START===");
   var gpuEnd = rawText.indexOf("===GPU_END===");
+  var drmStart = rawText.indexOf("===DRM_START===");
+  var drmEnd = rawText.indexOf("===DRM_END===");
 
-  // 1. Parse GPU memory if present
-  var gpuDict = {};
+  // 1. Parse NVIDIA GPU memory if present (MiB per PID)
+  var nvMemDict = {};
   if (gpuStart !== -1 && gpuEnd !== -1) {
     var gpuBlock = rawText.slice(gpuStart + 15, gpuEnd).trim();
     if (gpuBlock) {
@@ -44,13 +53,47 @@ function parseProcessOutput(rawText, currentUser) {
         if (gParts.length >= 2) {
           var gPid = parseInt(gParts[0].trim(), 10);
           var gMem = parseInt(gParts[1].trim(), 10) || 0;
-          if (gPid > 0) gpuDict[gPid] = gMem;
+          if (gPid > 0) nvMemDict[gPid] = (nvMemDict[gPid] || 0) + gMem;
         }
       }
     }
   }
 
-  // 2. Parse PS block
+  // 2. Parse DRM fdinfo (AMD/Intel/Nouveau per-process VRAM KiB, GTT KiB, Engine ns)
+  // Deduplicate by pid + ":" + clientId so duplicate FDs in a process aren't double-counted
+  var seenClients = {};
+  var drmDict = {};
+  if (drmStart !== -1 && drmEnd !== -1) {
+    var drmBlock = rawText.slice(drmStart + 15, drmEnd).trim();
+    if (drmBlock) {
+      var dLines = drmBlock.split("\n");
+      for (var d = 0; d < dLines.length; d++) {
+        var dLine = dLines[d].trim();
+        if (!dLine) continue;
+        var dParts = dLine.split(/\t|\s+/);
+        if (dParts.length >= 5) {
+          var dPid = parseInt(dParts[0], 10);
+          var clientId = dParts[1];
+          var vramKiB = parseInt(dParts[2], 10) || 0;
+          var gttKiB = parseInt(dParts[3], 10) || 0;
+          var engNs = parseFloat(dParts[4]) || 0;
+          if (dPid > 0 && clientId) {
+            var key = dPid + ":" + clientId;
+            if (seenClients[key]) continue;
+            seenClients[key] = true;
+            if (!drmDict[dPid]) {
+              drmDict[dPid] = { vramKiB: 0, gttKiB: 0, engNs: 0 };
+            }
+            drmDict[dPid].vramKiB += vramKiB;
+            drmDict[dPid].gttKiB += gttKiB;
+            drmDict[dPid].engNs += engNs;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Parse PS block
   var psText = rawText;
   if (psStart !== -1 && psEnd !== -1) {
     psText = rawText.slice(psStart + 15, psEnd);
@@ -79,7 +122,40 @@ function parseProcessOutput(rawText, currentUser) {
     var rssBytes = rssKiB * 1024;
     var rssFormatted = formatBytes(rssBytes);
     var isMine = currentUser ? (user === currentUser) : true;
-    var gpuMem = gpuDict[pid] || 0;
+
+    var nvMiB = nvMemDict[pid] || 0;
+    var drmInfo = drmDict[pid];
+    var drmMiB = 0;
+    var gpuPercent = 0.0;
+
+    if (drmInfo) {
+      // Use VRAM when > 1 MiB, otherwise include GTT for small APU surfaces
+      var effectiveKiB = drmInfo.vramKiB >= 1024 ? drmInfo.vramKiB : (drmInfo.vramKiB + drmInfo.gttKiB);
+      drmMiB = Math.round(effectiveKiB / 1024);
+
+      if (prevGpuState && typeof prevGpuState === "object") {
+        var prev = prevGpuState[pid];
+        if (prev && tsNow > prev.tsMs && drmInfo.engNs >= prev.engNs) {
+          var deltaWallNs = (tsNow - prev.tsMs) * 1000000;
+          var deltaEngNs = drmInfo.engNs - prev.engNs;
+          var pct = (deltaEngNs / deltaWallNs) * 100.0;
+          if (pct > 100.0) pct = 100.0;
+          if (pct < 0.0) pct = 0.0;
+          gpuPercent = Math.round(pct * 10) / 10;
+        }
+        prevGpuState[pid] = { engNs: drmInfo.engNs, tsMs: tsNow };
+      }
+    }
+
+    var gpuMemMiB = nvMiB + drmMiB;
+    // Composite GPU score for sorting: active GPU % weighted above passive VRAM MiB
+    var gpuScore = (gpuPercent * 10000) + gpuMemMiB;
+    var gpuFormatted = "0.0%";
+    if (gpuPercent > 0.0) {
+      gpuFormatted = gpuPercent.toFixed(1) + "%";
+    } else if (gpuMemMiB > 0) {
+      gpuFormatted = gpuMemMiB + " MiB";
+    }
 
     tasks.push({
       pid: pid,
@@ -90,8 +166,10 @@ function parseProcessOutput(rawText, currentUser) {
       memFormatted: mem.toFixed(1) + "%",
       rss: rssBytes,
       rssFormatted: rssFormatted,
-      gpu: gpuMem,
-      gpuFormatted: gpuMem > 0 ? (gpuMem + " MiB") : "-",
+      gpu: gpuScore,
+      gpuPercent: gpuPercent,
+      gpuMemMiB: gpuMemMiB,
+      gpuFormatted: gpuFormatted,
       name: comm,
       isMine: isMine
     });
@@ -115,7 +193,7 @@ function filterTasks(tasks, query, category, currentUser) {
     } else if (category === "heavy_ram") {
       if (t.rss < 100 * 1024 * 1024) return false; // >= 100 MiB
     } else if (category === "heavy_gpu") {
-      if (t.gpu <= 0) return false;
+      if ((t.gpuPercent || 0) <= 0 && (t.gpuMemMiB || 0) <= 0 && (t.gpu || 0) <= 0) return false;
     }
 
     // 2. Query filter
@@ -156,7 +234,9 @@ function sortTasks(tasks, sortBy, direction) {
 
     if (valA < valB) return isDesc ? 1 : -1;
     if (valA > valB) return isDesc ? -1 : 1;
-    return 0;
+    // Tie-breaker: CPU descending
+    if (a.cpu !== b.cpu) return b.cpu - a.cpu;
+    return a.pid - b.pid;
   });
 
   return copy;
@@ -202,7 +282,7 @@ function buildGetProcessDetailsScript(pid) {
     'cmdline=$(tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null || echo "")',
     'pkg=""',
     'if [ -n "$exe" ] && [ -f "$exe" ]; then',
-    '  pkg=$(pacman -Qo "$exe" 2>/dev/null | awk \'{print $NF}\' || echo "")',
+    '  pkg=$(pacman -Qoq "$exe" 2>/dev/null | head -n1 || echo "")',
     'fi',
     'echo -e "EXE\\t$exe"',
     'echo -e "CWD\\t$cwd"',

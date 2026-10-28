@@ -1,4 +1,4 @@
-// Sorter.js — Category filtering, text searching, and multi-mode sorting for OMAPP
+// Sorter.js — Category filtering, text searching, and column-header sorting for OMAPP
 
 function filterItems(items, category, query) {
   if (!items || !Array.isArray(items)) return [];
@@ -48,6 +48,14 @@ function sortItems(items, sortBy, sortOrder) {
       var aName = (a.name || a.pkg || "").toLowerCase();
       var bName = (b.name || b.pkg || "").toLowerCase();
       diff = aName.localeCompare(bName);
+    } else if (mode === "category") {
+      var aCat = (a.category || "").toLowerCase();
+      var bCat = (b.category || "").toLowerCase();
+      diff = aCat.localeCompare(bCat);
+    } else if (mode === "version") {
+      var aVer = (a.version || "").toLowerCase();
+      var bVer = (b.version || "").toLowerCase();
+      diff = aVer.localeCompare(bVer);
     } else if (mode === "date") {
       var aDate = a.installDate ? new Date(a.installDate).getTime() : 0;
       var bDate = b.installDate ? new Date(b.installDate).getTime() : 0;
@@ -58,12 +66,10 @@ function sortItems(items, sortBy, sortOrder) {
       diff = aUp - bUp;
     }
 
-    // Default for size and date is descending unless asc is explicitly requested
     if (mode === "size" || mode === "date" || mode === "update") {
       return isAsc ? diff : -diff;
     }
 
-    // Default for name is ascending unless desc is explicitly requested
     return isAsc ? diff : (sortOrder === "desc" ? -diff : diff);
   });
 

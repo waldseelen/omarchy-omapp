@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui
 
@@ -20,92 +21,101 @@ Rectangle {
   signal closed()
 
   anchors.fill: parent
-  color: Util.alpha("#000000", 0.7)
+  color: Color.menu.scrim
   visible: isOpen
   z: 110
 
-  // Intercept clicks
   MouseArea {
     anchors.fill: parent
     onClicked: {}
   }
 
-  Rectangle {
+  BorderSurface {
     id: modalBox
     anchors.centerIn: parent
     width: Style.space(680)
     height: Style.space(480)
     radius: Style.cornerRadius
-    color: Color.menu.background || "#18181b"
-    border.width: 1
-    border.color: Util.alpha(Color.accent, 0.4)
+    color: Color.menu.background
+    borderSpec: Border.controlSpec("selected", Color.menu.text, Color.accent)
 
     Column {
       anchors.fill: parent
       anchors.margins: Style.space(20)
       spacing: Style.space(14)
 
-      // Header Bar
       Row {
         width: parent.width
         spacing: Style.space(12)
 
         Text {
-          text: "🧹"
-          font.pixelSize: Style.space(24)
+          textFormat: Text.PlainText
+          text: "󰃢"
+          color: Color.accent
+          font.family: Style.font.family
+          font.pixelSize: Style.font.display
           anchors.verticalCenter: parent.verticalCenter
         }
 
         Column {
-          width: parent.width - Style.space(80)
+          width: parent.width - Style.space(60)
           spacing: Style.space(2)
 
           Text {
+            textFormat: Text.PlainText
             text: "OMAPP Deep Cleaner — " + (leftoverModalRoot.appItem ? (leftoverModalRoot.appItem.name || leftoverModalRoot.appItem.pkg) : "")
             color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.heading ? Style.font.heading : 15
-            font.weight: Font.Bold
+            font.pixelSize: Style.font.heading
+            font.bold: true
             elide: Text.ElideRight
           }
 
           Text {
+            textFormat: Text.PlainText
             text: {
               if (leftoverModalRoot.phase === 1) return "Step 1/3: Removing system package...";
-              if (leftoverModalRoot.phase === 2) return "Step 2/3: Deep hunting for residual user configs and caches...";
+              if (leftoverModalRoot.phase === 2) return "Step 2/3: Scanning for residual user configs and caches...";
               if (leftoverModalRoot.phase === 3) return "Step 3/3: Review residual files before permanent purge";
               return "Uninstallation Complete";
             }
-            color: Util.alpha(Color.menu.text, 0.6)
+            color: Color.muted
             font.family: Style.font.family
-            font.pixelSize: Style.space(11)
+            font.pixelSize: Style.font.bodySmall
           }
         }
       }
 
-      // Phase 1 & 2: Loading / Working State
+      PanelSeparator {
+        foreground: Color.menu.text
+      }
+
+      // Phase 1 & 2: Working State
       Item {
         visible: leftoverModalRoot.phase === 1 || leftoverModalRoot.phase === 2
         width: parent.width
-        height: Style.space(280)
+        height: Style.space(310)
 
         Column {
           anchors.centerIn: parent
-          spacing: Style.space(14)
+          spacing: Style.space(12)
 
           Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "⚙️"
-            font.pixelSize: Style.space(38)
-            opacity: 0.85
+            textFormat: Text.PlainText
+            text: "󰒋"
+            color: Color.accent
+            font.family: Style.font.family
+            font.pixelSize: Style.font.displayLarge
           }
 
           Text {
             anchors.horizontalCenter: parent.horizontalCenter
+            textFormat: Text.PlainText
             text: leftoverModalRoot.statusMessage || "Working..."
             color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.body ? Style.font.body : 13
+            font.pixelSize: Style.font.body
           }
         }
       }
@@ -114,89 +124,78 @@ Rectangle {
       Item {
         visible: leftoverModalRoot.phase === 3
         width: parent.width
-        height: Style.space(330)
+        height: Style.space(310)
 
         Column {
           anchors.fill: parent
           spacing: Style.space(10)
 
-          // Subheader: Total Size Reclaimed + Select All / Deselect All
           Item {
             width: parent.width
             height: Style.space(28)
 
-            // Reclaim badge
-            Rectangle {
+            BorderSurface {
               anchors.left: parent.left
               anchors.verticalCenter: parent.verticalCenter
               height: parent.height
               width: reclaimText.implicitWidth + Style.space(16)
-              radius: Style.space(4)
-              color: Util.alpha("#22c55e", 0.2)
-              border.width: 1
-              border.color: Util.alpha("#22c55e", 0.4)
+              radius: Style.cornerRadius
+              color: Style.hoverFill
+              borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
               Text {
                 id: reclaimText
                 anchors.centerIn: parent
+                textFormat: Text.PlainText
                 text: "Residual footprint: " + leftoverModalRoot.totalLeftoverFormatted
-                color: "#86efac"
+                color: Color.accent
                 font.family: Style.font.family
-                font.pixelSize: Style.space(11)
-                font.weight: Font.Bold
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
               }
             }
 
             Row {
-              id: actionsRow
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(8)
+              spacing: Style.space(6)
 
-              Text {
+              Button {
                 text: "Select All"
-                color: Color.accent
-                font.pixelSize: Style.space(11)
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: {
-                    for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
-                      leftoverModalRoot.leftoverItems[i].selected = true;
-                    }
-                    leftoverModalRoot.updateTotalSelected();
+                bordered: true
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(3)
+                onClicked: {
+                  for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
+                    leftoverModalRoot.leftoverItems[i].selected = true;
                   }
+                  leftoverModalRoot.updateTotalSelected();
                 }
               }
 
-              Text { text: "•"; color: Util.alpha(Color.menu.text, 0.4); font.pixelSize: Style.space(11) }
-
-              Text {
+              Button {
                 text: "Deselect All"
-                color: Util.alpha(Color.menu.text, 0.7)
-                font.pixelSize: Style.space(11)
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: {
-                    for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
-                      leftoverModalRoot.leftoverItems[i].selected = false;
-                    }
-                    leftoverModalRoot.updateTotalSelected();
+                bordered: true
+                fontSize: Style.font.caption
+                horizontalPadding: Style.space(8)
+                verticalPadding: Style.space(3)
+                onClicked: {
+                  for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
+                    leftoverModalRoot.leftoverItems[i].selected = false;
                   }
+                  leftoverModalRoot.updateTotalSelected();
                 }
               }
             }
           }
 
-          // Leftover List ScrollView
-          Rectangle {
+          BorderSurface {
             width: parent.width
-            height: Style.space(250)
+            height: Style.space(235)
             radius: Style.cornerRadius
-            color: Util.alpha(Color.menu.selectedBackground, 0.1)
-            border.width: 1
-            border.color: Util.alpha(Color.menu.border, 0.3)
+            color: Style.normalFill
+            borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
             clip: true
 
             ListView {
@@ -207,88 +206,85 @@ Rectangle {
               spacing: Style.space(4)
               boundsBehavior: Flickable.StopAtBounds
 
-              delegate: Rectangle {
+              ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+              delegate: CursorSurface {
+                required property var modelData
                 width: leftoverList.width
-                height: Style.space(36)
-                radius: Style.space(4)
-                color: modelData.selected ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
+                height: Style.space(34)
+                current: !!modelData.selected
+                hasCursor: itemMouse.containsMouse
 
                 Item {
                   anchors.fill: parent
                   anchors.leftMargin: Style.space(8)
                   anchors.rightMargin: Style.space(8)
 
-                  // Checkbox
-                  Rectangle {
+                  BorderSurface {
                     id: checkRect
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     width: Style.space(16)
                     height: Style.space(16)
-                    radius: Style.space(3)
+                    radius: Style.cornerRadius
                     color: modelData.selected ? Color.accent : "transparent"
-                    border.width: 1
-                    border.color: modelData.selected ? Color.accent : Util.alpha(Color.menu.text, 0.5)
+                    borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
                     Text {
                       anchors.centerIn: parent
+                      textFormat: Text.PlainText
                       text: "✓"
-                      color: Color.menu.selectedText || "#000000"
-                      font.pixelSize: Style.space(11)
-                      font.weight: Font.Bold
-                      visible: modelData.selected
+                      color: Color.menu.background
+                      font.family: Style.font.family
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                      visible: !!modelData.selected
                     }
                   }
 
-                  // Category Badge
-                  Rectangle {
-                    id: tagBadge
+                  Text {
+                    id: tagLabel
                     anchors.left: checkRect.right
                     anchors.leftMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
-                    height: Style.space(18)
-                    width: tagLabel.implicitWidth + Style.space(8)
-                    radius: Style.space(3)
-                    color: Util.alpha(Color.menu.border, 0.3)
-
-                    Text {
-                      id: tagLabel
-                      anchors.centerIn: parent
-                      text: modelData.category ? modelData.category.toUpperCase() : "FILE"
-                      color: Util.alpha(Color.menu.text, 0.8)
-                      font.pixelSize: Style.space(9)
-                      font.weight: Font.Bold
-                    }
+                    textFormat: Text.PlainText
+                    text: modelData.category ? modelData.category.toUpperCase() : "FILE"
+                    color: Color.accent
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
                   }
 
-                  // Size (Right-anchored)
                   Text {
                     id: sizeLabel
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
                     text: modelData.sizeFormatted
-                    color: Util.alpha(Color.menu.text, 0.7)
-                    font.pixelSize: Style.space(11)
-                    font.weight: Font.DemiBold
+                    color: Color.muted
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
                   }
 
-                  // Relative Path (Bounded between tagBadge and sizeLabel)
                   Text {
-                    anchors.left: tagBadge.right
+                    anchors.left: tagLabel.right
                     anchors.leftMargin: Style.space(10)
                     anchors.right: sizeLabel.left
                     anchors.rightMargin: Style.space(10)
                     anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
                     text: "~/" + modelData.relative
                     color: Color.menu.text
                     font.family: Style.font.family
-                    font.pixelSize: Style.space(11)
+                    font.pixelSize: Style.font.bodySmall
                     elide: Text.ElideMiddle
                   }
                 }
 
                 MouseArea {
+                  id: itemMouse
                   anchors.fill: parent
+                  hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
                     modelData.selected = !modelData.selected;
@@ -298,7 +294,6 @@ Rectangle {
               }
             }
 
-            // Zero Leftovers empty message
             Item {
               anchors.fill: parent
               visible: leftoverModalRoot.leftoverItems.length === 0
@@ -309,27 +304,32 @@ Rectangle {
 
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
-                  text: "✨"
-                  font.pixelSize: Style.space(28)
+                  textFormat: Text.PlainText
+                  text: "󰄬"
+                  color: Color.accent
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.display
                 }
 
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
-                  text: "No residual user configs or caches found. Clean system!"
-                  color: Util.alpha(Color.menu.text, 0.6)
-                  font.pixelSize: Style.space(12)
+                  textFormat: Text.PlainText
+                  text: "No residual user configs or caches found."
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
                 }
               }
             }
           }
 
-          // Safety Notice
           Text {
+            textFormat: Text.PlainText
             width: parent.width
-            text: "🛡️ A timestamped safety backup will be stored in ~/.local/share/omapp/backups/ prior to deletion."
-            color: Util.alpha(Color.menu.text, 0.5)
+            text: "Safety backup is created in ~/.local/share/omapp/backups/ prior to deletion."
+            color: Color.muted
             font.family: Style.font.family
-            font.pixelSize: Style.space(10)
+            font.pixelSize: Style.font.caption
           }
         }
       }
@@ -338,7 +338,7 @@ Rectangle {
       Item {
         visible: leftoverModalRoot.phase === 4
         width: parent.width
-        height: Style.space(330)
+        height: Style.space(310)
 
         Column {
           anchors.fill: parent
@@ -346,152 +346,114 @@ Rectangle {
 
           Row {
             spacing: Style.space(10)
-            Text { text: "✅"; font.pixelSize: Style.space(24) }
+            Text {
+              textFormat: Text.PlainText
+              text: "󰄬"
+              color: Color.accent
+              font.family: Style.font.family
+              font.pixelSize: Style.font.display
+            }
             Column {
               Text {
-                text: "Application and Residual Data Cleaned!"
-                color: "#86efac"
-                font.pixelSize: Style.space(14)
-                font.weight: Font.Bold
+                textFormat: Text.PlainText
+                text: "Application and Residual Data Cleaned"
+                color: Color.accent
+                font.family: Style.font.family
+                font.pixelSize: Style.font.title
+                font.bold: true
               }
               Text {
-                text: "Successfully removed and reclaimed disk space."
-                color: Util.alpha(Color.menu.text, 0.6)
-                font.pixelSize: Style.space(11)
+                textFormat: Text.PlainText
+                text: "Successfully removed package and reclaimed disk space."
+                color: Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
               }
             }
           }
 
-          // Orphan Detection Box
-          Rectangle {
+          BorderSurface {
             visible: !!leftoverModalRoot.orphanListText && leftoverModalRoot.orphanListText !== "NO_ORPHANS"
             width: parent.width
             height: Style.space(160)
             radius: Style.cornerRadius
-            color: Util.alpha("#f59e0b", 0.12)
-            border.width: 1
-            border.color: Util.alpha("#f59e0b", 0.4)
+            color: Style.hoverFill
+            borderSpec: Border.controlSpec("normal", Color.urgent, Color.urgent)
 
             Column {
               anchors.fill: parent
               anchors.margins: Style.space(12)
               spacing: Style.space(8)
 
-              Row {
-                spacing: Style.space(6)
-                Text { text: "📦"; font.pixelSize: Style.space(14) }
-                Text {
-                  text: "Unneeded Orphan Dependencies Detected"
-                  color: "#fcd34d"
-                  font.pixelSize: Style.space(12)
-                  font.weight: Font.Bold
-                }
+              Text {
+                textFormat: Text.PlainText
+                text: "󰏖 Unneeded Orphan Dependencies Detected"
+                color: Color.urgent
+                font.family: Style.font.family
+                font.pixelSize: Style.font.body
+                font.bold: true
               }
 
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
-                text: "Removing this package left orphan dependencies behind:\n" + leftoverModalRoot.orphanListText
-                color: Util.alpha(Color.menu.text, 0.85)
-                font.pixelSize: Style.space(11)
+                text: leftoverModalRoot.orphanListText
+                color: Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
                 wrapMode: Text.Wrap
               }
 
-              Item { width: 1; height: 1 }
-
-              Rectangle {
-                height: Style.space(30)
-                width: pruneText.implicitWidth + Style.space(20)
-                radius: Style.space(4)
-                color: "#f59e0b"
-
-                Text {
-                  id: pruneText
-                  anchors.centerIn: parent
-                  text: "Prune Orphan Packages"
-                  color: "#000000"
-                  font.pixelSize: Style.space(11)
-                  font.weight: Font.Bold
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  cursorShape: Qt.PointingHandCursor
-                  onClicked: leftoverModalRoot.pruneOrphansRequested()
-                }
+              Button {
+                bordered: true
+                iconText: "󰩺"
+                text: "Prune Orphan Packages"
+                foreground: Color.urgent
+                accent: Color.urgent
+                onClicked: leftoverModalRoot.pruneOrphansRequested()
               }
             }
           }
         }
       }
 
-      // Footer Action Buttons
+      // Footer Buttons
       Row {
         anchors.right: parent.right
         spacing: Style.space(10)
 
-        // Close / Cancel button
-        Rectangle {
-          height: Style.space(34)
-          width: closeText.implicitWidth + Style.space(24)
-          radius: Style.space(6)
-          color: Util.alpha(Color.menu.selectedBackground, 0.2)
-          border.width: 1
-          border.color: Util.alpha(Color.menu.border, 0.3)
-
-          Text {
-            id: closeText
-            anchors.centerIn: parent
-            text: {
-              if (leftoverModalRoot.phase === 4 || leftoverModalRoot.leftoverItems.length === 0) return "Done";
-              if (leftoverModalRoot.phase === 1 || leftoverModalRoot.phase === 2) return "Cancel";
-              return "Skip Residuals";
-            }
-            color: Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.space(12)
+        Button {
+          bordered: true
+          text: {
+            if (leftoverModalRoot.phase === 4 || leftoverModalRoot.leftoverItems.length === 0) return "Done";
+            if (leftoverModalRoot.phase === 1 || leftoverModalRoot.phase === 2) return "Cancel";
+            return "Skip Residuals";
           }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              leftoverModalRoot.isOpen = false;
-              leftoverModalRoot.closed();
-            }
+          foreground: Color.menu.text
+          accent: Color.accent
+          onClicked: {
+            leftoverModalRoot.isOpen = false;
+            leftoverModalRoot.closed();
           }
         }
 
-        // Permanently Purge Button (Phase 3)
-        Rectangle {
+        Button {
           visible: leftoverModalRoot.phase === 3 && leftoverModalRoot.leftoverItems.length > 0
-          height: Style.space(34)
-          width: purgeBtnText.implicitWidth + Style.space(24)
-          radius: Style.space(6)
-          color: "#ef4444"
-
-          Text {
-            id: purgeBtnText
-            anchors.centerIn: parent
-            text: leftoverModalRoot.isPurging ? "Purging..." : "Permanently Purge Selected"
-            color: "#ffffff"
-            font.family: Style.font.family
-            font.pixelSize: Style.space(12)
-            font.weight: Font.Bold
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            enabled: !leftoverModalRoot.isPurging
-            onClicked: {
-              var selected = [];
-              for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
-                if (leftoverModalRoot.leftoverItems[i].selected) {
-                  selected.push(leftoverModalRoot.leftoverItems[i].path);
-                }
+          bordered: true
+          iconText: "󰩺"
+          text: leftoverModalRoot.isPurging ? "Purging..." : "Permanently Purge Selected"
+          foreground: Color.urgent
+          accent: Color.urgent
+          background: Util.alpha(Color.urgent, Style.normalFillAlpha)
+          onClicked: {
+            if (leftoverModalRoot.isPurging) return;
+            var selected = [];
+            for (var i = 0; i < leftoverModalRoot.leftoverItems.length; i++) {
+              if (leftoverModalRoot.leftoverItems[i].selected) {
+                selected.push(leftoverModalRoot.leftoverItems[i].path);
               }
-              leftoverModalRoot.confirmedPurge(selected);
             }
+            leftoverModalRoot.confirmedPurge(selected);
           }
         }
       }

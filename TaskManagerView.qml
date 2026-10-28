@@ -1,45 +1,44 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
 import "script/TaskManager.js" as TaskManager
 
-Rectangle {
+Item {
   id: taskViewRoot
 
+  property var taskModel: null
   property var tasks: []
   property int selectedIndex: 0
   property var shell: null
   property string currentUser: Quickshell.env("USER") || ""
   property string activeCategory: "all"
-  property string activeSort: "cpu" // "cpu", "mem", "gpu", "pid", "user", "name"
+  property string activeSort: "cpu" // "cpu", "mem", "gpu", "pid", "name"
   property string sortDirection: "desc" // "desc", "asc"
   property string filterText: ""
   property bool sudoActive: false
 
-  // Inspected task details with stable PID tracking (Prevents flickering "Loading...")
   property var inspectedTask: (tasks.length > 0 && selectedIndex >= 0 && selectedIndex < tasks.length)
     ? tasks[selectedIndex] : null
   property int currentInspectedPid: -1
   property var inspectedDetails: ({ exe: "", cwd: "", cmd: "", pkg: "" })
   property bool isDetailsLoading: false
 
+  signal taskSelected(int index, int pid)
   signal killRequested(int pid, bool force)
   signal openLocationRequested(int pid)
   signal inspectPackageRequested(string pkg)
   signal refreshRequested()
   signal sortRequested(string mode, string direction)
 
-  radius: Style.cornerRadius
-  color: "transparent"
-
   function toggleSort(column) {
     var nextDir = "desc";
     if (taskViewRoot.activeSort === column) {
       nextDir = (taskViewRoot.sortDirection === "desc") ? "asc" : "desc";
     } else {
-      nextDir = (column === "name" || column === "user") ? "asc" : "desc";
+      nextDir = (column === "name") ? "asc" : "desc";
     }
     taskViewRoot.activeSort = column;
     taskViewRoot.sortDirection = nextDir;
@@ -77,63 +76,48 @@ Rectangle {
     anchors.fill: parent
     spacing: Style.space(14)
 
-    // Left Pane: Windows-style Interactive Process Table
-    Rectangle {
-      width: parent.width * 0.58
+    // Left Pane: Windows Task Manager Style Process Table
+    BorderSurface {
+      width: parent.width * 0.60
       height: parent.height
       radius: Style.cornerRadius
-      color: Util.alpha(Color.menu.selectedBackground, 0.08)
-      border.width: 1
-      border.color: Util.alpha(Color.menu.border, 0.3)
+      color: Style.normalFill
+      borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
       clip: true
 
       Column {
         anchors.fill: parent
         anchors.margins: Style.space(6)
-        spacing: Style.space(2)
+        spacing: Style.space(4)
 
-        // Column Headers (Windows Task Manager Style with integrated sorting)
-        Rectangle {
+        // Windows Task Manager Style Clickable Column Header Bar
+        BorderSurface {
           width: parent.width
-          height: Style.space(28)
-          radius: Style.space(4)
-          color: Util.alpha(Color.menu.selectedBackground, 0.15)
-          border.width: 1
-          border.color: Util.alpha(Color.menu.border, 0.2)
+          height: Style.space(30)
+          radius: Style.cornerRadius
+          color: Style.hoverFill
+          borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
           Row {
             anchors.fill: parent
-            anchors.leftMargin: Style.space(8)
-            anchors.rightMargin: Style.space(8)
+            anchors.leftMargin: Style.space(10)
+            anchors.rightMargin: Style.space(10)
             spacing: Style.space(6)
 
             // 1. Process Name Column Header
-            Rectangle {
+            Item {
               height: parent.height
-              width: parent.width - Style.space(340) // Flexible width
-              color: nameHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
+              width: Math.max(Style.space(120), parent.width - Style.space(308))
 
-              Row {
+              Text {
                 anchors.left: parent.left
-                anchors.leftMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(4)
-
-                Text {
-                  text: "Process Name"
-                  color: taskViewRoot.activeSort === "name" ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: taskViewRoot.activeSort === "name" ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: taskViewRoot.activeSort === "name"
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
+                textFormat: Text.PlainText
+                text: "Process Name" + (taskViewRoot.activeSort === "name" ? (taskViewRoot.sortDirection === "asc" ? " ▲" : " ▼") : "")
+                color: taskViewRoot.activeSort === "name" ? Color.accent : (nameHeaderMouse.containsMouse ? Color.menu.text : Color.muted)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
               }
 
               MouseArea {
@@ -146,32 +130,19 @@ Rectangle {
             }
 
             // 2. PID Column Header
-            Rectangle {
+            Item {
               height: parent.height
-              width: Style.space(55)
-              color: pidHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
+              width: Style.space(58)
 
-              Row {
+              Text {
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-
-                Text {
-                  text: "PID"
-                  color: taskViewRoot.activeSort === "pid" ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: taskViewRoot.activeSort === "pid" ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: taskViewRoot.activeSort === "pid"
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
+                textFormat: Text.PlainText
+                text: "PID" + (taskViewRoot.activeSort === "pid" ? (taskViewRoot.sortDirection === "asc" ? " ▲" : " ▼") : "")
+                color: taskViewRoot.activeSort === "pid" ? Color.accent : (pidHeaderMouse.containsMouse ? Color.menu.text : Color.muted)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
               }
 
               MouseArea {
@@ -183,71 +154,20 @@ Rectangle {
               }
             }
 
-            // 3. User Column Header
-            Rectangle {
+            // 3. CPU Column Header
+            Item {
               height: parent.height
-              width: Style.space(55)
-              color: userHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
+              width: Style.space(68)
 
-              Row {
+              Text {
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-
-                Text {
-                  text: "User"
-                  color: taskViewRoot.activeSort === "user" ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: taskViewRoot.activeSort === "user" ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: taskViewRoot.activeSort === "user"
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
-              }
-
-              MouseArea {
-                id: userHeaderMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: taskViewRoot.toggleSort("user")
-              }
-            }
-
-            // 4. CPU Column Header
-            Rectangle {
-              height: parent.height
-              width: Style.space(65)
-              color: cpuHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
-
-              Row {
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(4)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-
-                Text {
-                  text: "CPU %"
-                  color: taskViewRoot.activeSort === "cpu" ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: taskViewRoot.activeSort === "cpu" ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: taskViewRoot.activeSort === "cpu"
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
+                textFormat: Text.PlainText
+                text: "CPU" + (taskViewRoot.activeSort === "cpu" ? (taskViewRoot.sortDirection === "asc" ? " ▲" : " ▼") : "")
+                color: taskViewRoot.activeSort === "cpu" ? Color.accent : (cpuHeaderMouse.containsMouse ? Color.menu.text : Color.muted)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
               }
 
               MouseArea {
@@ -259,71 +179,20 @@ Rectangle {
               }
             }
 
-            // 5. Memory / RAM Column Header
-            Rectangle {
+            // 4. GPU Column Header
+            Item {
               height: parent.height
-              width: Style.space(75)
-              color: memHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
+              width: Style.space(76)
 
-              Row {
+              Text {
                 anchors.right: parent.right
-                anchors.rightMargin: Style.space(4)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-
-                Text {
-                  text: "Memory"
-                  color: (taskViewRoot.activeSort === "mem" || taskViewRoot.activeSort === "ram") ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: (taskViewRoot.activeSort === "mem" || taskViewRoot.activeSort === "ram") ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: (taskViewRoot.activeSort === "mem" || taskViewRoot.activeSort === "ram")
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
-              }
-
-              MouseArea {
-                id: memHeaderMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: taskViewRoot.toggleSort("mem")
-              }
-            }
-
-            // 6. GPU Column Header
-            Rectangle {
-              height: parent.height
-              width: Style.space(55)
-              color: gpuHeaderMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.25) : "transparent"
-              radius: Style.space(4)
-
-              Row {
-                anchors.right: parent.right
-                anchors.rightMargin: Style.space(4)
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Style.space(3)
-
-                Text {
-                  text: "GPU"
-                  color: taskViewRoot.activeSort === "gpu" ? Color.accent : Util.alpha(Color.menu.text, 0.7)
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: taskViewRoot.activeSort === "gpu" ? Font.Bold : Font.DemiBold
-                }
-
-                Text {
-                  visible: taskViewRoot.activeSort === "gpu"
-                  text: taskViewRoot.sortDirection === "asc" ? "▲" : "▼"
-                  color: Color.accent
-                  font.pixelSize: Style.space(9)
-                }
+                textFormat: Text.PlainText
+                text: "GPU" + (taskViewRoot.activeSort === "gpu" ? (taskViewRoot.sortDirection === "asc" ? " ▲" : " ▼") : "")
+                color: taskViewRoot.activeSort === "gpu" ? Color.accent : (gpuHeaderMouse.containsMouse ? Color.menu.text : Color.muted)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
               }
 
               MouseArea {
@@ -334,72 +203,107 @@ Rectangle {
                 onClicked: taskViewRoot.toggleSort("gpu")
               }
             }
+
+            // 5. RAM Column Header
+            Item {
+              height: parent.height
+              width: Style.space(82)
+
+              Text {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: "RAM" + ((taskViewRoot.activeSort === "mem" || taskViewRoot.activeSort === "ram") ? (taskViewRoot.sortDirection === "asc" ? " ▲" : " ▼") : "")
+                color: (taskViewRoot.activeSort === "mem" || taskViewRoot.activeSort === "ram") ? Color.accent : (memHeaderMouse.containsMouse ? Color.menu.text : Color.muted)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+              }
+
+              MouseArea {
+                id: memHeaderMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: taskViewRoot.toggleSort("mem")
+              }
+            }
           }
         }
 
-        // Process List View with Buttery-Smooth Touchpad Scrolling
+        // Process ListView bound to persistent ListModel for zero-jitter touchpad scrolling
         ListView {
           id: taskListView
           width: parent.width
-          height: parent.height - Style.space(32)
-          model: taskViewRoot.tasks
+          height: parent.height - Style.space(34)
+          model: taskViewRoot.taskModel
           currentIndex: taskViewRoot.selectedIndex
           spacing: Style.space(2)
           pixelAligned: true
-          reuseItems: true
           boundsBehavior: Flickable.StopAtBounds
           flickableDirection: Flickable.VerticalFlick
+          flickDeceleration: 1500
+          maximumFlickVelocity: 2500
           highlightMoveDuration: 0
           clip: true
 
-          delegate: Rectangle {
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          delegate: CursorSurface {
             id: taskRow
+            required property int index
+            required property int pid
+            required property string name
+            required property string user
+            required property real cpu
+            required property string cpuFormatted
+            required property real gpu
+            required property real gpuPercent
+            required property int gpuMemMiB
+            required property string gpuFormatted
+            required property real rss
+            required property string rssFormatted
+            required property bool isMine
+
+            readonly property bool isRowSelected: index === taskViewRoot.selectedIndex
+
             width: ListView.view ? ListView.view.width : Style.space(400)
-            height: Style.space(38)
-            radius: Style.space(4)
-
-            // Omarchy-compliant background & border
-            color: index === taskViewRoot.selectedIndex
-              ? Util.alpha(Color.accent, 0.12)
-              : (taskRowMouse.containsMouse ? Util.alpha(Color.menu.selectedBackground, 0.2) : "transparent")
-
-            // Left Accent Stroke when selected
-            Rectangle {
-              visible: index === taskViewRoot.selectedIndex
-              anchors.left: parent.left
-              anchors.top: parent.top
-              anchors.bottom: parent.bottom
-              width: 2
-              color: Color.accent
-            }
+            height: Style.space(34)
+            foreground: Color.menu.text
+            accent: Color.accent
+            current: isRowSelected
+            hasCursor: taskRowMouse.containsMouse
 
             Row {
               anchors.fill: parent
-              anchors.leftMargin: Style.space(8)
-              anchors.rightMargin: Style.space(8)
+              anchors.leftMargin: Style.space(10)
+              anchors.rightMargin: Style.space(10)
               spacing: Style.space(6)
 
-              // 1. Process Name & Icon (Left flex column)
+              // 1. Process Name + User Icon
               Row {
                 height: parent.height
-                width: parent.parent.width - Style.space(340)
+                width: Math.max(Style.space(120), parent.width - Style.space(308))
                 spacing: Style.space(8)
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
-                  text: modelData.cpu > 5.0 ? "⚡" : (modelData.isMine ? "👤" : "⚙️")
-                  font.pixelSize: Style.space(12)
-                  opacity: 0.85
+                  textFormat: Text.PlainText
+                  text: taskRow.cpu > 5.0 ? "󰓅" : (taskRow.isMine ? "󰀄" : "󰒋")
+                  color: taskRow.cpu > 5.0 ? Color.urgent : (taskRow.isMine ? Color.accent : Color.muted)
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.body
                 }
 
                 Text {
                   anchors.verticalCenter: parent.verticalCenter
-                  width: parent.width - Style.space(24)
-                  text: modelData.name
-                  color: index === taskViewRoot.selectedIndex ? Color.menu.selectedText : Color.menu.text
+                  textFormat: Text.PlainText
+                  width: parent.width - Style.space(22)
+                  text: taskRow.name
+                  color: taskRow.isRowSelected ? Color.accent : Color.menu.text
                   font.family: Style.font.family
-                  font.pixelSize: Style.space(12)
-                  font.weight: index === taskViewRoot.selectedIndex ? Font.DemiBold : Font.Normal
+                  font.pixelSize: Style.font.body
+                  font.bold: taskRow.isRowSelected
                   elide: Text.ElideRight
                 }
               }
@@ -407,72 +311,77 @@ Rectangle {
               // 2. PID Column
               Text {
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(55)
-                text: String(modelData.pid)
-                color: Util.alpha(Color.menu.text, 0.55)
+                width: Style.space(58)
+                textFormat: Text.PlainText
+                text: String(taskRow.pid)
+                color: Color.muted
                 font.family: Style.font.family
-                font.pixelSize: Style.space(11)
+                font.pixelSize: Style.font.bodySmall
                 horizontalAlignment: Text.AlignRight
               }
 
-              // 3. User Column
-              Text {
+              // 3. CPU % Column (Heatmap cell using theme tokens)
+              BorderSurface {
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(55)
-                text: modelData.user
-                color: modelData.isMine ? Color.accent : Util.alpha(Color.menu.text, 0.55)
-                font.family: Style.font.family
-                font.pixelSize: Style.space(11)
-                horizontalAlignment: Text.AlignRight
-                elide: Text.ElideRight
-              }
-
-              // 4. CPU % Column
-              Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(65)
+                width: Style.space(68)
                 height: Style.space(22)
-                radius: Style.space(3)
+                radius: Style.cornerRadius
                 color: {
-                  if (modelData.cpu > 20.0) return Util.alpha("#ef4444", 0.18);
-                  if (modelData.cpu > 5.0) return Util.alpha("#f59e0b", 0.18);
+                  if (taskRow.cpu >= 20.0) return Util.alpha(Color.urgent, Style.selectedFillAlpha);
+                  if (taskRow.cpu >= 5.0) return Util.alpha(Color.accent, Style.hoverFillAlpha);
                   return "transparent";
                 }
 
                 Text {
-                  anchors.centerIn: parent
-                  text: modelData.cpuFormatted
+                  anchors.right: parent.right
+                  anchors.rightMargin: Style.space(4)
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  text: taskRow.cpuFormatted
                   color: {
-                    if (modelData.cpu > 20.0) return "#fca5a5";
-                    if (modelData.cpu > 5.0) return "#fcd34d";
-                    return Util.alpha(Color.menu.text, 0.85);
+                    if (taskRow.cpu >= 20.0) return Color.urgent;
+                    if (taskRow.cpu >= 5.0) return Color.accent;
+                    return Color.menu.text;
                   }
                   font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: modelData.cpu > 5.0 ? Font.Bold : Font.Normal
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: taskRow.cpu >= 5.0
                 }
               }
 
-              // 5. Memory / RAM Column
-              Text {
+              // 4. GPU Column (Hybrid DRM + NVIDIA)
+              BorderSurface {
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(75)
-                text: modelData.rssFormatted
-                color: Util.alpha(Color.menu.text, 0.8)
-                font.family: Style.font.family
-                font.pixelSize: Style.space(11)
-                font.weight: Font.Medium
-                horizontalAlignment: Text.AlignRight
+                width: Style.space(76)
+                height: Style.space(22)
+                radius: Style.cornerRadius
+                color: taskRow.gpuPercent >= 5.0
+                  ? Util.alpha(Color.accent, Style.hoverFillAlpha)
+                  : "transparent"
+
+                Text {
+                  anchors.right: parent.right
+                  anchors.rightMargin: Style.space(4)
+                  anchors.verticalCenter: parent.verticalCenter
+                  textFormat: Text.PlainText
+                  text: taskRow.gpuFormatted
+                  color: (taskRow.gpuPercent > 0 || taskRow.gpuMemMiB > 0) ? Color.accent : Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.bodySmall
+                  font.bold: taskRow.gpuPercent > 0
+                }
               }
 
-              // 6. GPU Column
+              // 5. RAM Column
               Text {
                 anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(55)
-                text: modelData.gpuFormatted
-                color: modelData.gpu > 0 ? Color.accent : Util.alpha(Color.menu.text, 0.45)
+                width: Style.space(82)
+                textFormat: Text.PlainText
+                text: taskRow.rssFormatted
+                color: taskRow.rss >= 500 * 1024 * 1024 ? Color.accent : Color.menu.text
                 font.family: Style.font.family
-                font.pixelSize: Style.space(11)
+                font.pixelSize: Style.font.bodySmall
+                font.bold: taskRow.rss >= 500 * 1024 * 1024
                 horizontalAlignment: Text.AlignRight
               }
             }
@@ -483,33 +392,35 @@ Rectangle {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onClicked: {
-                taskViewRoot.selectedIndex = index;
+                taskViewRoot.taskSelected(taskRow.index, taskRow.pid);
               }
             }
           }
 
-          // Empty state
           Item {
             anchors.fill: parent
             visible: taskViewRoot.tasks.length === 0
 
             Column {
               anchors.centerIn: parent
-              spacing: Style.space(10)
+              spacing: Style.space(8)
 
               Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: "🔍"
-                font.pixelSize: Style.space(32)
-                opacity: 0.5
+                textFormat: Text.PlainText
+                text: "󰍛"
+                color: Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.display
               }
 
               Text {
                 anchors.horizontalCenter: parent.horizontalCenter
+                textFormat: Text.PlainText
                 text: "No matching processes found"
-                color: Util.alpha(Color.menu.text, 0.5)
+                color: Color.muted
                 font.family: Style.font.family
-                font.pixelSize: Style.space(12)
+                font.pixelSize: Style.font.body
               }
             }
           }
@@ -517,337 +428,311 @@ Rectangle {
       }
     }
 
-    // Right Pane: Process Details & Control Drawer
-    Rectangle {
-      width: parent.width * 0.42 - Style.space(14)
+    // Right Pane: Process Inspector & Action Controls
+    BorderSurface {
+      width: parent.width * 0.40 - Style.space(14)
       height: parent.height
       radius: Style.cornerRadius
-      color: Util.alpha(Color.menu.selectedBackground, 0.12)
-      border.width: 1
-      border.color: Util.alpha(Color.menu.border, 0.3)
+      color: Style.normalFill
+      borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
       clip: true
 
-      // Empty State
       Item {
         anchors.fill: parent
         visible: !taskViewRoot.inspectedTask
 
         Column {
           anchors.centerIn: parent
-          spacing: Style.space(12)
+          spacing: Style.space(10)
 
           Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "📊"
-            font.pixelSize: Style.space(36)
-            opacity: 0.6
+            textFormat: Text.PlainText
+            text: "󰍛"
+            color: Color.muted
+            font.family: Style.font.family
+            font.pixelSize: Style.font.display
           }
 
           Text {
             anchors.horizontalCenter: parent.horizontalCenter
+            textFormat: Text.PlainText
             text: "Select a process to inspect & manage"
-            color: Util.alpha(Color.menu.text, 0.45)
+            color: Color.muted
             font.family: Style.font.family
-            font.pixelSize: Style.space(12)
+            font.pixelSize: Style.font.body
           }
         }
       }
 
-      // Active Process Inspector
       Flickable {
         anchors.fill: parent
-        anchors.margins: Style.space(14)
+        anchors.margins: Style.space(16)
         visible: !!taskViewRoot.inspectedTask
         contentHeight: pContentCol.implicitHeight
         pixelAligned: true
         boundsBehavior: Flickable.StopAtBounds
 
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
         Column {
           id: pContentCol
           width: parent.width
-          spacing: Style.space(12)
+          spacing: Style.space(14)
 
-          // Header: Icon + Process Name + PID
+          // Process Header
           Row {
             width: parent.width
             spacing: Style.space(12)
 
-            Rectangle {
+            BorderSurface {
               width: Style.space(44)
               height: Style.space(44)
-              radius: Style.space(8)
-              color: Util.alpha(Color.menu.selectedBackground, 0.25)
+              radius: Style.cornerRadius
+              color: Style.hoverFill
+              borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
               Text {
                 anchors.centerIn: parent
-                text: taskViewRoot.inspectedTask && taskViewRoot.inspectedTask.cpu > 5.0 ? "⚡" : "⚙️"
-                font.pixelSize: Style.space(20)
+                textFormat: Text.PlainText
+                text: taskViewRoot.inspectedTask && taskViewRoot.inspectedTask.cpu > 5.0 ? "󰓅" : "󰒋"
+                color: taskViewRoot.inspectedTask && taskViewRoot.inspectedTask.cpu > 5.0 ? Color.urgent : Color.accent
+                font.family: Style.font.family
+                font.pixelSize: Style.font.iconLarge
               }
             }
 
             Column {
               width: parent.width - Style.space(56)
               spacing: Style.space(2)
-              clip: true
 
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
                 text: taskViewRoot.inspectedTask ? taskViewRoot.inspectedTask.name : ""
                 color: Color.menu.text
                 font.family: Style.font.family
-                font.pixelSize: Style.font.heading ? Style.font.heading : 15
-                font.weight: Font.Bold
+                font.pixelSize: Style.font.heading
+                font.bold: true
                 elide: Text.ElideRight
               }
 
               Text {
+                textFormat: Text.PlainText
                 width: parent.width
-                text: taskViewRoot.inspectedTask ? ("PID " + taskViewRoot.inspectedTask.pid + " • User: " + taskViewRoot.inspectedTask.user) : ""
-                color: Util.alpha(Color.menu.text, 0.6)
+                text: taskViewRoot.inspectedTask
+                  ? ("PID " + taskViewRoot.inspectedTask.pid + " • User: " + taskViewRoot.inspectedTask.user)
+                  : ""
+                color: Color.muted
                 font.family: Style.font.family
-                font.pixelSize: Style.space(11)
+                font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideRight
               }
             }
           }
 
-          // Action Buttons Flow (Omarchy monochrome & tinted design)
+          // Action Buttons using native qs.Ui.Button
           Flow {
             width: parent.width
             spacing: Style.space(8)
 
-            // 1. Terminate Button (SIGTERM)
-            Rectangle {
-              height: Style.space(30)
-              width: termText.implicitWidth + Style.space(20)
-              radius: Style.space(4)
-              color: Util.alpha("#ef4444", 0.15)
-              border.width: 1
-              border.color: Util.alpha("#ef4444", 0.3)
-
-              Row {
-                anchors.centerIn: parent
-                spacing: Style.space(5)
-                Text { text: "🛑"; font.pixelSize: Style.space(10) }
-                Text {
-                  id: termText
-                  text: "End Task (SIGTERM)"
-                  color: "#fca5a5"
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: Font.Medium
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  if (taskViewRoot.inspectedTask) {
-                    taskViewRoot.killRequested(taskViewRoot.inspectedTask.pid, false);
-                  }
+            Button {
+              bordered: true
+              iconText: "󰅙"
+              text: "End Task"
+              foreground: Color.urgent
+              accent: Color.urgent
+              background: Util.alpha(Color.urgent, Style.normalFillAlpha)
+              onClicked: {
+                if (taskViewRoot.inspectedTask) {
+                  taskViewRoot.killRequested(taskViewRoot.inspectedTask.pid, false);
                 }
               }
             }
 
-            // 2. Force Kill Button (SIGKILL)
-            Rectangle {
-              height: Style.space(30)
-              width: forceText.implicitWidth + Style.space(20)
-              radius: Style.space(4)
-              color: Util.alpha(Color.menu.selectedBackground, 0.25)
-              border.width: 1
-              border.color: Util.alpha(Color.menu.border, 0.3)
-
-              Row {
-                anchors.centerIn: parent
-                spacing: Style.space(5)
-                Text { text: "⚡"; font.pixelSize: Style.space(10) }
-                Text {
-                  id: forceText
-                  text: "Force Kill"
-                  color: Color.menu.text
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: Font.Medium
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  if (taskViewRoot.inspectedTask) {
-                    taskViewRoot.killRequested(taskViewRoot.inspectedTask.pid, true);
-                  }
+            Button {
+              bordered: true
+              iconText: "󰚌"
+              text: "Force Kill"
+              foreground: Color.urgent
+              accent: Color.urgent
+              onClicked: {
+                if (taskViewRoot.inspectedTask) {
+                  taskViewRoot.killRequested(taskViewRoot.inspectedTask.pid, true);
                 }
               }
             }
 
-            // 3. Open File Location Button
-            Rectangle {
-              height: Style.space(30)
-              width: openLocText.implicitWidth + Style.space(20)
-              radius: Style.space(4)
-              color: Util.alpha(Color.menu.selectedBackground, 0.15)
-              border.width: 1
-              border.color: Util.alpha(Color.menu.border, 0.25)
-
-              Row {
-                anchors.centerIn: parent
-                spacing: Style.space(5)
-                Text { text: "📂"; font.pixelSize: Style.space(10) }
-                Text {
-                  id: openLocText
-                  text: "Open File Location"
-                  color: Color.menu.text
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  if (taskViewRoot.inspectedTask) {
-                    taskViewRoot.openLocationRequested(taskViewRoot.inspectedTask.pid);
-                  }
+            Button {
+              bordered: true
+              iconText: "󰉋"
+              text: "Open File Location"
+              foreground: Color.menu.text
+              accent: Color.accent
+              onClicked: {
+                if (taskViewRoot.inspectedTask) {
+                  taskViewRoot.openLocationRequested(taskViewRoot.inspectedTask.pid);
                 }
               }
             }
 
-            // 4. View Package in App Manager
-            Rectangle {
+            Button {
               visible: !!taskViewRoot.inspectedDetails.pkg
-              height: Style.space(30)
-              width: viewPkgText.implicitWidth + Style.space(20)
-              radius: Style.space(4)
-              color: Util.alpha(Color.accent, 0.18)
-              border.width: 1
-              border.color: Util.alpha(Color.accent, 0.35)
-
-              Row {
-                anchors.centerIn: parent
-                spacing: Style.space(5)
-                Text { text: "📦"; font.pixelSize: Style.space(10) }
-                Text {
-                  id: viewPkgText
-                  text: "Package: " + taskViewRoot.inspectedDetails.pkg
-                  color: Color.accent
-                  font.family: Style.font.family
-                  font.pixelSize: Style.space(11)
-                  font.weight: Font.DemiBold
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                  taskViewRoot.inspectPackageRequested(taskViewRoot.inspectedDetails.pkg);
-                }
+              bordered: true
+              iconText: "󰏖"
+              text: "Package: " + taskViewRoot.inspectedDetails.pkg
+              foreground: Color.accent
+              accent: Color.accent
+              onClicked: {
+                taskViewRoot.inspectPackageRequested(taskViewRoot.inspectedDetails.pkg);
               }
             }
           }
 
-          // Resource Meters (CPU & RAM)
-          Rectangle {
+          // 3-Column Resource Telemetry Card (CPU | GPU | RAM)
+          BorderSurface {
             width: parent.width
-            height: Style.space(56)
-            radius: Style.space(6)
-            color: Util.alpha(Color.menu.selectedBackground, 0.12)
-            border.width: 1
-            border.color: Util.alpha(Color.menu.border, 0.2)
+            height: Style.space(62)
+            radius: Style.cornerRadius
+            color: Style.hoverFill
+            borderSpec: Border.controlSpec("normal", Color.menu.text, Color.accent)
 
             Row {
               anchors.fill: parent
-              anchors.margins: Style.space(8)
+              anchors.margins: Style.space(10)
 
-              // CPU Box
               Column {
-                width: parent.width * 0.5
+                width: parent.width / 3
                 spacing: Style.space(2)
-                Text { text: "CPU Usage"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(10) }
                 Text {
-                  text: taskViewRoot.inspectedTask ? taskViewRoot.inspectedTask.cpuFormatted : "0%"
-                  color: taskViewRoot.inspectedTask && taskViewRoot.inspectedTask.cpu > 10.0 ? "#fca5a5" : Color.menu.text
-                  font.pixelSize: Style.space(14)
-                  font.weight: Font.Bold
+                  textFormat: Text.PlainText
+                  text: "CPU"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: taskViewRoot.inspectedTask ? taskViewRoot.inspectedTask.cpuFormatted : "0.0%"
+                  color: taskViewRoot.inspectedTask && taskViewRoot.inspectedTask.cpu >= 20.0 ? Color.urgent : Color.menu.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.title
+                  font.bold: true
                 }
               }
 
-              // RAM Box
               Column {
-                width: parent.width * 0.5
+                width: parent.width / 3
                 spacing: Style.space(2)
-                Text { text: "Memory (RSS)"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(10) }
                 Text {
+                  textFormat: Text.PlainText
+                  text: "GPU / VRAM"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  textFormat: Text.PlainText
+                  text: {
+                    if (!taskViewRoot.inspectedTask) return "0.0%";
+                    var t = taskViewRoot.inspectedTask;
+                    if (t.gpuPercent > 0 && t.gpuMemMiB > 0) return t.gpuPercent.toFixed(1) + "% · " + t.gpuMemMiB + "M";
+                    return t.gpuFormatted;
+                  }
+                  color: taskViewRoot.inspectedTask && (taskViewRoot.inspectedTask.gpuPercent > 0 || taskViewRoot.inspectedTask.gpuMemMiB > 0)
+                    ? Color.accent : Color.menu.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.title
+                  font.bold: true
+                  elide: Text.ElideRight
+                  width: parent.width - Style.space(4)
+                }
+              }
+
+              Column {
+                width: parent.width / 3
+                spacing: Style.space(2)
+                Text {
+                  textFormat: Text.PlainText
+                  text: "Memory (RSS)"
+                  color: Color.muted
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+                Text {
+                  textFormat: Text.PlainText
                   text: taskViewRoot.inspectedTask ? taskViewRoot.inspectedTask.rssFormatted : "0 B"
                   color: Color.menu.text
-                  font.pixelSize: Style.space(14)
-                  font.weight: Font.Bold
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.title
+                  font.bold: true
                 }
               }
             }
           }
 
-          // Divider
-          Rectangle {
-            width: parent.width
-            height: 1
-            color: Util.alpha(Color.menu.border, 0.2)
+          PanelSeparator {
+            foreground: Color.menu.text
           }
 
           // Process Details Table
           Column {
             width: parent.width
-            spacing: Style.space(6)
+            spacing: Style.space(8)
 
             Row {
               width: parent.width
-              Text { width: Style.space(90); text: "Executable:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+              Text { textFormat: Text.PlainText; width: Style.space(110); text: "Executable"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
               Text {
-                width: parent.width - Style.space(90)
-                text: taskViewRoot.isDetailsLoading ? "Loading..." : (taskViewRoot.inspectedDetails.exe || "Kernel worker / No binary")
+                textFormat: Text.PlainText
+                width: parent.width - Style.space(110)
+                text: taskViewRoot.isDetailsLoading ? "Loading..." : (taskViewRoot.inspectedDetails.exe || "Kernel thread / No binary")
                 color: Color.menu.text
-                font.pixelSize: Style.space(11)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideMiddle
               }
             }
 
             Row {
               width: parent.width
-              Text { width: Style.space(90); text: "Package:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+              Text { textFormat: Text.PlainText; width: Style.space(110); text: "Package"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
               Text {
-                width: parent.width - Style.space(90)
+                textFormat: Text.PlainText
+                width: parent.width - Style.space(110)
                 text: taskViewRoot.isDetailsLoading ? "Checking..." : (taskViewRoot.inspectedDetails.pkg || "Unmanaged binary / daemon")
-                color: taskViewRoot.inspectedDetails.pkg ? Color.accent : Util.alpha(Color.menu.text, 0.6)
-                font.pixelSize: Style.space(11)
-                font.weight: taskViewRoot.inspectedDetails.pkg ? Font.DemiBold : Font.Normal
+                color: taskViewRoot.inspectedDetails.pkg ? Color.accent : Color.muted
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.bold: !!taskViewRoot.inspectedDetails.pkg
+                elide: Text.ElideRight
               }
             }
 
             Row {
               width: parent.width
-              Text { width: Style.space(90); text: "Working Dir:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+              Text { textFormat: Text.PlainText; width: Style.space(110); text: "Working Dir"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
               Text {
-                width: parent.width - Style.space(90)
+                textFormat: Text.PlainText
+                width: parent.width - Style.space(110)
                 text: taskViewRoot.isDetailsLoading ? "-" : (taskViewRoot.inspectedDetails.cwd || "-")
                 color: Color.menu.text
-                font.pixelSize: Style.space(11)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideMiddle
               }
             }
 
             Row {
               width: parent.width
-              Text { width: Style.space(90); text: "Command Line:"; color: Util.alpha(Color.menu.text, 0.5); font.pixelSize: Style.space(11) }
+              Text { textFormat: Text.PlainText; width: Style.space(110); text: "Command Line"; color: Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
               Text {
-                width: parent.width - Style.space(90)
+                textFormat: Text.PlainText
+                width: parent.width - Style.space(110)
                 text: taskViewRoot.isDetailsLoading ? "-" : (taskViewRoot.inspectedDetails.cmd || "-")
-                color: Util.alpha(Color.menu.text, 0.8)
-                font.pixelSize: Style.space(11)
+                color: Color.menu.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
                 wrapMode: Text.WrapAnywhere
               }
             }
@@ -859,5 +744,11 @@ Rectangle {
 
   function isUserScrolling() {
     return taskListView.moving || taskListView.flicking || taskListView.dragging;
+  }
+
+  function positionAt(idx) {
+    if (idx >= 0 && idx < taskListView.count) {
+      taskListView.positionViewAtIndex(idx, ListView.Contain);
+    }
   }
 }

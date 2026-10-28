@@ -36,9 +36,21 @@ const sortedBySize = Sorter.sortItems(mockItems, "size", "desc");
 assert.strictEqual(sortedBySize[0].name, "Zotero");
 assert.strictEqual(sortedBySize[sortedBySize.length - 1].name, "Discord Web");
 
-// Test sort by name (ascending)
+// Test sort by name (ascending & descending)
 const sortedByName = Sorter.sortItems(mockItems, "name", "asc");
 assert.strictEqual(sortedByName[0].name, "Alacritty");
 assert.strictEqual(sortedByName[sortedByName.length - 1].name, "Zotero");
+
+const sortedByNameDesc = Sorter.sortItems(mockItems, "name", "desc");
+assert.strictEqual(sortedByNameDesc[0].name, "Zotero");
+assert.strictEqual(sortedByNameDesc[sortedByNameDesc.length - 1].name, "Alacritty");
+
+// Test sort by category (ascending & descending)
+const sortedByCatAsc = Sorter.sortItems(mockItems, "category", "asc");
+assert.strictEqual(sortedByCatAsc[0].category, "desktop");
+assert.strictEqual(sortedByCatAsc[sortedByCatAsc.length - 1].category, "webapp");
+
+const sortedByCatDesc = Sorter.sortItems(mockItems, "category", "desc");
+assert.strictEqual(sortedByCatDesc[0].category, "webapp");
 
 console.log("Sorter tests passed! ✅");

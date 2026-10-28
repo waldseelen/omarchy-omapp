@@ -26,10 +26,47 @@ assert.strictEqual(tasks[0].cpu, 9.1);
 assert.strictEqual(tasks[0].isMine, true);
 assert.strictEqual(tasks[2].isMine, false);
 
-// Check GPU mapping
+// Check GPU mapping (NVIDIA + DRM fdinfo + delta GPU %)
 assert.strictEqual(tasks[1].pid, 13336);
-assert.strictEqual(tasks[1].gpu, 120);
+assert.strictEqual(tasks[1].gpuMemMiB, 120);
 assert.strictEqual(tasks[1].gpuFormatted, "120 MiB");
+
+// 1b. DRM fdinfo GPU % and VRAM parsing with two snapshots
+const gpuState = {};
+const snap1 = [
+  "===PS_START===",
+  "  1017 hp        9.1  9.4 1476544 MainThread",
+  "  1133 hp        2.0  1.5  218000 Hyprland",
+  "===PS_END===",
+  "===DRM_START===",
+  "1017\t5\t146052\t119780\t1000000000",
+  "1017\t5\t146052\t119780\t1000000000", // duplicate fd for same drm-client-id 5 must deduplicate
+  "1133\t12\t12\t2048\t500000000",
+  "===DRM_END==="
+].join("\n");
+
+const snap2 = [
+  "===PS_START===",
+  "  1017 hp        9.1  9.4 1476544 MainThread",
+  "  1133 hp        2.0  1.5  218000 Hyprland",
+  "===PS_END===",
+  "===DRM_START===",
+  "1017\t5\t146052\t119780\t1500000000", // +500ms engine time over 2000ms wall time = 25.0% GPU
+  "1133\t12\t12\t2048\t520000000",       // +20ms engine time over 2000ms wall time = 1.0% GPU
+  "===DRM_END==="
+].join("\n");
+
+TaskManager.parseProcessOutput(snap1, "hp", gpuState, 1000);
+const drmTasks = TaskManager.parseProcessOutput(snap2, "hp", gpuState, 3000);
+assert.strictEqual(drmTasks[0].gpuPercent, 25.0, "MainThread should have 25.0% GPU usage");
+assert.strictEqual(drmTasks[0].gpuFormatted, "25.0%");
+assert.strictEqual(drmTasks[0].gpuMemMiB, 143, "MainThread VRAM KiB should convert to ~143 MiB");
+assert.strictEqual(drmTasks[1].gpuPercent, 1.0, "Hyprland should have 1.0% GPU usage");
+
+const sortedDrmByGpu = TaskManager.sortTasks(drmTasks, "gpu", "desc");
+assert.strictEqual(sortedDrmByGpu[0].pid, 1017);
+const sortedDrmByGpuAsc = TaskManager.sortTasks(drmTasks, "gpu", "asc");
+assert.strictEqual(sortedDrmByGpuAsc[0].pid, 1133);
 
 // 2. Filter tasks
 const userTasks = TaskManager.filterTasks(tasks, "", "user", "hp");

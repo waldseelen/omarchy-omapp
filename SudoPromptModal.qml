@@ -13,159 +13,106 @@ Rectangle {
   signal cancelled()
 
   anchors.fill: parent
-  color: Util.alpha("#000000", 0.65)
+  color: Color.menu.scrim
   visible: isOpen
   z: 100
 
-  // Intercept all clicks outside the dialog
   MouseArea {
     anchors.fill: parent
     onClicked: {}
   }
 
-  Rectangle {
+  BorderSurface {
     id: dialogBox
     anchors.centerIn: parent
     width: Style.space(420)
-    height: Style.space(260)
+    height: Style.space(240)
     radius: Style.cornerRadius
-    color: Color.menu.background || "#18181b"
-    border.width: 1
-    border.color: Util.alpha(Color.accent, 0.4)
+    color: Color.menu.background
+    borderSpec: Border.controlSpec("selected", Color.menu.text, Color.accent)
 
     Column {
       anchors.fill: parent
-      anchors.margins: Style.space(24)
+      anchors.margins: Style.space(22)
       spacing: Style.space(14)
 
-      // Header icon + title
       Row {
         spacing: Style.space(10)
         Text {
-          text: "🔒"
-          font.pixelSize: Style.space(22)
+          textFormat: Text.PlainText
+          text: "󰌾"
+          color: Color.accent
+          font.family: Style.font.family
+          font.pixelSize: Style.font.display
           anchors.verticalCenter: parent.verticalCenter
         }
         Column {
           spacing: Style.space(2)
           Text {
+            textFormat: Text.PlainText
             text: "Administrator Authentication"
             color: Color.menu.text
             font.family: Style.font.family
-            font.pixelSize: Style.font.heading ? Style.font.heading : 15
-            font.weight: Font.Bold
+            font.pixelSize: Style.font.heading
+            font.bold: true
           }
           Text {
-            text: "Unlock OMAPP package operations for this session"
-            color: Util.alpha(Color.menu.text, 0.6)
+            textFormat: Text.PlainText
+            text: "Unlock OMAPP root operations for this session"
+            color: Color.muted
             font.family: Style.font.family
-            font.pixelSize: Style.space(11)
+            font.pixelSize: Style.font.bodySmall
           }
         }
       }
 
-      // Password Input Box
-      Rectangle {
+      TextField {
+        id: pwdInput
         width: parent.width
-        height: Style.space(42)
-        radius: Style.cornerRadius
-        color: Util.alpha(Color.menu.selectedBackground, 0.25)
-        border.width: 1
-        border.color: pwdInput.activeFocus ? Color.accent : Util.alpha(Color.menu.border, 0.4)
-
-        TextInput {
-          id: pwdInput
-          anchors.fill: parent
-          anchors.margins: Style.space(10)
-          color: Color.menu.text
-          font.family: Style.font.family
-          font.pixelSize: Style.font.body ? Style.font.body : 13
-          echoMode: TextInput.Password
-          clip: true
-
-          Text {
-            anchors.fill: parent
-            visible: !pwdInput.text && !pwdInput.activeFocus
-            text: "Enter sudo password..."
-            color: Util.alpha(Color.menu.text, 0.4)
-            font: pwdInput.font
-          }
-
-          onAccepted: {
-            if (pwdInput.text.length > 0 && !sudoModalRoot.isChecking) {
-              sudoModalRoot.submitted(pwdInput.text);
-            }
+        password: true
+        foreground: Color.menu.text
+        accent: Color.accent
+        placeholderText: "Enter sudo password..."
+        onAccepted: {
+          if (pwdInput.text.length > 0 && !sudoModalRoot.isChecking) {
+            sudoModalRoot.submitted(pwdInput.text);
           }
         }
       }
 
-      // Error Message display
       Text {
         visible: !!sudoModalRoot.errorMessage
+        textFormat: Text.PlainText
         width: parent.width
         text: sudoModalRoot.errorMessage
-        color: "#f87171" // bright red
+        color: Color.urgent
         font.family: Style.font.family
-        font.pixelSize: Style.space(11)
-        font.weight: Font.DemiBold
+        font.pixelSize: Style.font.bodySmall
+        font.bold: true
         wrapMode: Text.Wrap
       }
 
-      Item { width: 1; height: Style.space(2) }
-
-      // Buttons Row
       Row {
         anchors.right: parent.right
         spacing: Style.space(10)
 
-        // Cancel
-        Rectangle {
-          height: Style.space(34)
-          width: cancelText.implicitWidth + Style.space(24)
-          radius: Style.space(6)
-          color: Util.alpha(Color.menu.selectedBackground, 0.2)
-          border.width: 1
-          border.color: Util.alpha(Color.menu.border, 0.3)
-
-          Text {
-            id: cancelText
-            anchors.centerIn: parent
-            text: "Cancel"
-            color: Color.menu.text
-            font.family: Style.font.family
-            font.pixelSize: Style.space(12)
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: sudoModalRoot.cancelled()
-          }
+        Button {
+          bordered: true
+          text: "Cancel"
+          foreground: Color.menu.text
+          accent: Color.accent
+          onClicked: sudoModalRoot.cancelled()
         }
 
-        // Unlock (Submit)
-        Rectangle {
-          height: Style.space(34)
-          width: unlockText.implicitWidth + Style.space(24)
-          radius: Style.space(6)
-          color: Color.accent
-          opacity: (pwdInput.text.length > 0 && !sudoModalRoot.isChecking) ? 1.0 : 0.5
-
-          Text {
-            id: unlockText
-            anchors.centerIn: parent
-            text: sudoModalRoot.isChecking ? "Verifying..." : "Unlock Session"
-            color: Color.menu.selectedText || "#000000"
-            font.family: Style.font.family
-            font.pixelSize: Style.space(12)
-            font.weight: Font.Bold
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            enabled: pwdInput.text.length > 0 && !sudoModalRoot.isChecking
-            onClicked: {
+        Button {
+          bordered: true
+          selected: true
+          iconText: "󰌿"
+          text: sudoModalRoot.isChecking ? "Verifying..." : "Unlock Session"
+          foreground: Color.menu.text
+          accent: Color.accent
+          onClicked: {
+            if (pwdInput.text.length > 0 && !sudoModalRoot.isChecking) {
               sudoModalRoot.submitted(pwdInput.text);
             }
           }
