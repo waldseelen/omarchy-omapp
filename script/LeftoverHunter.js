@@ -112,13 +112,14 @@ function parseScanOutput(stdoutText, home, safeHelper) {
       seen[check.normalized] = true;
       var cat = getCategoryForPath(check.normalized, home, safe);
       var sizeFmt = safe.formatBytes ? safe.formatBytes(size) : (size + " B");
+      var isOrphan = (parts[2] === "ORPHAN");
       items.push({
         path: check.normalized,
         relative: check.relative,
         size: size,
         sizeFormatted: sizeFmt,
         category: cat,
-        selected: true
+        selected: isOrphan ? (cat === "cache") : true
       });
     }
   }
@@ -136,7 +137,7 @@ function buildPreviewCommand(targetPath, home, safeHelper) {
   return ["bash", "-c", script];
 }
 
-// #17 Orphaned user dotfiles scanner (folders in ~/.cache & ~/.config with no matching installed package)
+// #17 Orphaned user dotfiles scanner (folders in ~/.cache & ~/.config with no matching installed package, binary, or desktop entry)
 function buildOrphanDotfilesScanScript(home, safeHelper) {
   var safe = getSafe(safeHelper);
   var escapedHome = safe.shellEscape ? safe.shellEscape(safe.normalizePath(home)) : ("'" + home + "'");
@@ -144,21 +145,41 @@ function buildOrphanDotfilesScanScript(home, safeHelper) {
     'home=' + escapedHome,
     'declare -A pkgset=()',
     'for p in $(pacman -Qq 2>/dev/null | tr "[:upper:]" "[:lower:]" | sed "s/-bin$//;s/-git$//"); do',
-    '  pkgset["$p"]=1',
-    '  pkgset["${p//[-_]/}"]=1',
+    '  pkgset["$p"]=1; pkgset["${p//[-_]/}"]=1',
+    '  first="${p%%-*}"; [ "${#first}" -ge 3 ] && pkgset["$first"]=1',
     'done',
-    'for sys in mesa_shader_cache mesa_shader_cache_db fontconfig yay paru pip go-build bravesoftware chromium mozilla nvidia qtshadercache qtshadercache-x86_64-little_endian-lp64 gstreamer-1.0 ibusibus-table trash thumbnails waldseelen.omapp omapp omarchy hypr quickshell dconf gtk-3.0 gtk-4.0 pulse systemd xsettingsd mimeapps.list; do',
-    '  pkgset["$sys"]=1',
+    'for b in /usr/bin/* "$home/.local/bin"/* "$home/Applications"/*.AppImage; do',
+    '  [ -e "$b" ] || continue',
+    '  bn=$(basename "$b" .AppImage | tr "[:upper:]" "[:lower:]" | sed "s/-[0-9].*$//")',
+    '  pkgset["$bn"]=1; pkgset["${bn//[-_]/}"]=1',
+    'done',
+    'if command -v flatpak >/dev/null 2>&1; then',
+    '  for fp in $(flatpak list --app --columns=application 2>/dev/null | tr "[:upper:]" "[:lower:]"); do',
+    '    pkgset["$fp"]=1; pkgset["${fp##*.}"]=1',
+    '  done',
+    'fi',
+    'for df in /usr/share/applications/*.desktop "$home/.local/share/applications"/*.desktop; do',
+    '  [ -f "$df" ] || continue',
+    '  dfn=$(basename "$df" .desktop | tr "[:upper:]" "[:lower:]")',
+    '  pkgset["$dfn"]=1; pkgset["${dfn##*.}"]=1',
+    '  for tok in $(grep -E "^(Exec|Icon|StartupWMClass)=" "$df" 2>/dev/null | cut -d= -f2 | tr "[:upper:]" "[:lower:]"); do',
+    '    clean=$(basename "${tok%% *}" | sed "s/[^a-z0-9_-]//g")',
+    '    [ "${#clean}" -ge 2 ] && { pkgset["$clean"]=1; pkgset["${clean//[-_]/}"]=1; }',
+    '  done',
+    'done',
+    'for sys in mesa_shader_cache mesa_shader_cache_db radv_builtin_shaders fontconfig yay paru pip pip-audit go-build bravesoftware chromium mozilla nvidia nv vulkan qtshadercache qtshadercache-x86_64-little_endian-lp64 gstreamer-1.0 ibus ibus-table trash thumbnails waldseelen.omapp omapp omarchy hypr quickshell dconf gtk-3.0 gtk-4.0 pulse systemd xsettingsd mimeapps.list antigravity legendary heroic heroic_gogdl proton protonfixes winetricks wine steam lutris tracker3 debuginfod_client node-gyp npm cargo rustup; do',
+    '  pkgset["$sys"]=1; pkgset["${sys//[-_]/}"]=1',
     'done',
     'for d in "$home/.cache"/* "$home/.config"/*; do',
     '  [ -d "$d" ] || continue',
     '  [ -L "$d" ] && continue',
     '  bn=$(basename "$d" | tr "[:upper:]" "[:lower:]")',
     '  bn_clean="${bn//[-_]/}"',
-    '  if [ -z "${pkgset[$bn]}" ] && [ -z "${pkgset[$bn_clean]}" ]; then',
+    '  bn_prefix="${bn%%[-_]*}"',
+    '  if [ -z "${pkgset[$bn]}" ] && [ -z "${pkgset[$bn_clean]}" ] && { [ "${#bn_prefix}" -lt 3 ] || [ -z "${pkgset[$bn_prefix]}" ]; }; then',
     '    sz=$(du -sb "$d" 2>/dev/null | cut -f1)',
     '    if [ "${sz:-0}" -gt 4096 ]; then',
-    '      echo -e "$d\\t$sz"',
+    '      echo -e "$d\\t$sz\\tORPHAN"',
     '    fi',
     '  fi',
     'done'

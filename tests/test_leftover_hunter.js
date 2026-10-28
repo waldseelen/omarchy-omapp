@@ -42,4 +42,27 @@ assert.strictEqual(items[0].selected, true);
 assert.strictEqual(items[1].category, "cache");
 assert.strictEqual(items[2].category, "autostart");
 
+// Test orphan dotfiles scanner includes prefix, /usr/bin, .desktop Exec/WMClass, Flatpak/AppImage, and gaming/runtime guards
+const orphanScan = LeftoverHunter.buildOrphanDotfilesScanScript(mockHome);
+assert.strictEqual(orphanScan[0], "bash");
+assert.ok(orphanScan[2].includes('/usr/bin/*'));
+assert.ok(orphanScan[2].includes('StartupWMClass'));
+assert.ok(orphanScan[2].includes('flatpak'));
+assert.ok(orphanScan[2].includes('first="${p%%-*}"'));
+assert.ok(orphanScan[2].includes('heroic'));
+assert.ok(orphanScan[2].includes('legendary'));
+assert.ok(orphanScan[2].includes('bn_prefix="${bn%%[-_]*}"'));
+assert.ok(orphanScan[2].includes('ORPHAN'));
+
+// Test that ORPHAN scan defaults ~/.config items to selected: false while ~/.cache items remain selected: true
+const orphanParsed = LeftoverHunter.parseScanOutput([
+  "/home/hp/.config/oldapp\t10240\tORPHAN",
+  "/home/hp/.cache/oldapp\t20480\tORPHAN"
+].join("\n"), mockHome);
+assert.strictEqual(orphanParsed.length, 2);
+assert.strictEqual(orphanParsed[0].category, "config");
+assert.strictEqual(orphanParsed[0].selected, false);
+assert.strictEqual(orphanParsed[1].category, "cache");
+assert.strictEqual(orphanParsed[1].selected, true);
+
 console.log("LeftoverHunter tests passed! ✅");

@@ -7,6 +7,14 @@
 - `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 400 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
 
+## 2026-10-28 — Orphan Dotfile Scanner Hardening & Backup Recovery
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `script/LeftoverHunter.js›buildOrphanDotfilesScanScript`: Indexed first hyphen-token prefixes (`${p%%-*}` so `heroic-games-launcher-bin` protects `heroic`), `/usr/bin/*` & `~/.local/bin/*` executables (`nvim`, `gh`, etc.), `/usr/share/applications/*.desktop` & `~/.local/share/applications/*.desktop` entries, directory prefix matching (`${bn%%[-_]*}` so `heroic_gogdl` and `omarchy-*` are protected), and gaming/runtime caches (`heroic`, `legendary`, `proton`, `protonfixes`, `winetricks`, `wine`, `steam`, `lutris`, `antigravity`, `radv_builtin_shaders`, `tracker3`, `debuginfod_client`, `node-gyp`).
+  - `tests/test_leftover_hunter.js`: Added unit test coverage for `buildOrphanDotfilesScanScript` binary, prefix, and gaming/runtime guards.
+- **Kanıt**: Restored `orphans-20261028160858.tar.gz` (`~/.config/heroic`, `~/.config/nvim`, etc.) and verified `Cyberpunk 2077` (`93 GB`) + Epic/GOG auth restored; `omarchy plugin validate .` PASS (exit 0); 7 Node.js test suites PASS (exit 0); `wc -l` ≤400 lines PASS across all 25 files; 0 hex colors PASS.
+- **Kalan boşluk**: Yok.
+
 ## 2026-10-28 — Hyprland Shortcut Passthrough, Dynamic Layer Focus & Shell Hide Sync
 
 - **Değişen alanlar (`path›symbol`)**:
