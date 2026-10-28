@@ -4,8 +4,20 @@
 
 - `omarchy plugin validate /home/hp/Work/omarchy-omapp`: **PASS** exit 0, schemaVersion 1, valid manifest & kinds/entrypoints mapping
 - `for t in tests/test_*.js; do node "$t" || exit 1; done`: **PASS** 7 suites (`test_safe_ops`, `test_sudo_keeper`, `test_scanner`, `test_sorter`, `test_task_manager`, `test_leftover_hunter`, `test_extended_modules`); 0 errors
-- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 397 lines, `LeftoverReviewModal.qml` 396 lines)
+- `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 396 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
+
+## 2026-10-28 — Sudo Root Persistence, Modal Focus & Janitor Feedback Hardening
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `Omapp.qml›sudoAuthProc, sudoKeepaliveTimer, lockSudo, onSudoClicked`: Switched authentication from subshell pipeline to direct `["sudo", "-S", "-v"]` with `stdinEnabled: true` so the root ticket binds directly to the `omarchy-shell` parent process; added 45s keepalive timer running `sudo -n -v`; added `lockSudo()` executing `sudo -k` to drop root privileges; unified header button toggle.
+  - `SudoPromptModal.qml›onIsOpenChanged, Keys.onEscapePressed`: Enforced autofocus via `Qt.callLater(pwdInput.forceActiveFocus)` whenever modal opens; added Escape key handler to cancel without deadlocks.
+  - `script/SudoKeeper.js›buildOrphanCleanCommand, buildCacheCleanCommand`: Added `2>&1` stderr capture and fallback execution branches so pacman/paccache/orphan errors are surfaced to `actionRunnerProc`.
+  - `script/JanitorOps.js›buildCleanJournalCommand, parseJanitorStats`: Unmuted `journalctl --vacuum-size=100M` errors (`2>&1`) and normalized orphan card display format.
+  - `SystemJanitorView.qml`: Renamed card 8 title to "Broken Symlinks" for strict functional accuracy.
+  - `Omapp.qml›actionRunnerProc.onExited`: Added successful fallback status when commands exit 0 without stdout (ensuring backup restore gives immediate feedback).
+- **Kanıt**: `omarchy plugin validate` PASS (exit 0), 7 Node.js test suites PASS (exit 0), `wc -l` ≤400 lines PASS across all 25 source files, 0 hex colors PASS.
+- **Kalan boşluk**: Yok.
 
 ## 2026-10-28 — Touchpad Sensitivity & Smooth Kinetic Scrolling Overhaul
 

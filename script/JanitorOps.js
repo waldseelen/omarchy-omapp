@@ -71,7 +71,7 @@ function parseJanitorStats(rawText) {
     if (line.indexOf("STATS\t") === 0) {
       var p = line.split("\t");
       res.orphanText = (p[1] || "0") + " unneeded packages";
-      res.orphans = res.orphanText;
+      res.orphans = (p[1] || "0") + " packages";
       res.pacmanCache = parseSizeOrKiB(p[2]);
       res.pacman = res.pacmanCache;
       res.yayCache = parseSizeOrKiB(p[3]);
@@ -126,7 +126,7 @@ function buildCleanYayCommand() {
 function buildCleanJournalCommand() {
   return [
     "bash", "-c",
-    'sudo -n journalctl --vacuum-size=100M >/dev/null 2>&1 && echo "CLEAN_OK:Vacuumed systemd journal to <=100M"'
+    '(sudo -n journalctl --vacuum-size=100M 2>&1 || journalctl --vacuum-size=100M 2>&1) && echo "CLEAN_OK:Vacuumed systemd journal to <=100M"'
   ];
 }
 

@@ -67,7 +67,7 @@ function buildDowngradeCommand(archivePath) {
 function buildOrphanCleanCommand() {
   return [
     "bash", "-c",
-    'orphans=$(pacman -Qtdq 2>/dev/null); if [ -n "$orphans" ]; then sudo -n pacman -Rns --noconfirm $orphans && echo "CLEAN_OK:Pruned orphan packages"; else echo "CLEAN_OK:No orphan packages to prune"; fi'
+    'orphans=$(pacman -Qtdq 2>/dev/null); if [ -n "$orphans" ]; then (sudo -n pacman -Rns --noconfirm $orphans 2>&1 || pacman -Rns --noconfirm $orphans 2>&1) && echo "CLEAN_OK:Pruned orphan packages"; else echo "CLEAN_OK:No orphan packages to prune"; fi'
   ];
 }
 
@@ -78,7 +78,7 @@ function buildOrphanPruneCommand() {
 function buildCacheCleanCommand() {
   return [
     "bash", "-c",
-    'if command -v paccache >/dev/null 2>&1; then sudo -n paccache -rk1 && sudo -n paccache -ruk0 && echo "CLEAN_OK:Trimmed pacman cache (kept latest version)"; else sudo -n pacman -Sc --noconfirm && echo "CLEAN_OK:Cleaned pacman cache"; fi'
+    'if command -v paccache >/dev/null 2>&1; then (sudo -n paccache -rk1 2>&1 && sudo -n paccache -ruk0 2>&1) && echo "CLEAN_OK:Trimmed pacman cache (kept latest version)"; else (sudo -n pacman -Sc --noconfirm 2>&1) && echo "CLEAN_OK:Cleaned pacman cache"; fi'
   ];
 }
 

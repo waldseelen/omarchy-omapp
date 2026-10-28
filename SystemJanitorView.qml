@@ -182,7 +182,7 @@ BorderSurface {
             { id: "dev", icon: "󰅩", title: "Dev Caches", val: janitorRoot.stats.dev, desc: "npm, pip, cargo, go-build, gradle", btn: "Clean Dev Cache" },
             { id: "browser", icon: "󰖟", title: "Browser GPU/Cache", val: janitorRoot.stats.browser, desc: "Safe transient Cache (keeps logins)", btn: "Clean Cache" },
             { id: "docker", icon: "󰡨", title: "Docker Reclaimable", val: janitorRoot.stats.docker, desc: "Unused containers & build cache", btn: "Docker Prune" },
-            { id: "symlinks", icon: "󰌺", title: "Broken Links / .pacnew", val: (janitorRoot.stats.symlinks || 0) + " links • " + (janitorRoot.stats.pacnew || 0) + " pacnew", desc: "Dangling ~/.config symlinks", btn: "Clean Links" }
+            { id: "symlinks", icon: "󰌺", title: "Broken Symlinks", val: (janitorRoot.stats.symlinks || 0) + " broken links", desc: "Dangling ~/.config symlinks", btn: "Clean Links" }
           ]
 
           BorderSurface {

@@ -17,6 +17,18 @@ Rectangle {
   visible: isOpen
   z: 100
 
+  onIsOpenChanged: {
+    if (isOpen) {
+      pwdInput.text = "";
+      Qt.callLater(function() { pwdInput.forceActiveFocus(); });
+    }
+  }
+
+  Keys.onEscapePressed: function(event) {
+    event.accepted = true;
+    sudoModalRoot.cancelled();
+  }
+
   MouseArea {
     anchors.fill: parent
     onClicked: {}
@@ -123,6 +135,6 @@ Rectangle {
 
   function initFocus() {
     pwdInput.text = "";
-    pwdInput.forceActiveFocus();
+    Qt.callLater(function() { pwdInput.forceActiveFocus(); });
   }
 }
