@@ -90,7 +90,7 @@ function buildOrphanPruneCommand() {
 function buildCacheCleanCommand() {
   return [
     "sudo", "-S", "-p", "", "bash", "-c",
-    'if command -v paccache >/dev/null 2>&1; then paccache -rk1 2>&1 && paccache -ruk0 2>&1 && echo "CLEAN_OK:Trimmed pacman cache (kept latest version)"; else pacman -Sc --noconfirm 2>&1 && echo "CLEAN_OK:Cleaned pacman cache"; fi'
+    'if command -v paccache >/dev/null 2>&1; then paccache -rk0 -ruk0 2>&1 && echo "CLEAN_OK:Purged pacman package cache"; else pacman -Scc --noconfirm 2>&1 && echo "CLEAN_OK:Purged pacman package cache"; fi'
   ];
 }
 

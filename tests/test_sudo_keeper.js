@@ -24,4 +24,9 @@ const orphanCmd = SudoKeeper.buildOrphanCleanCommand();
 assert.strictEqual(orphanCmd[0], "sudo");
 assert.ok(orphanCmd[6].includes("pacman -Qtdq"));
 
+const cacheCmd = SudoKeeper.buildCacheCleanCommand();
+assert.strictEqual(cacheCmd[0], "sudo");
+assert.ok(cacheCmd[6].includes("paccache -rk0"));
+assert.ok(cacheCmd[6].includes("CLEAN_OK:Purged pacman package cache"));
+
 console.log("SudoKeeper tests passed! ✅");

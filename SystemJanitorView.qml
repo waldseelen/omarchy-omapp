@@ -176,7 +176,7 @@ BorderSurface {
         Repeater {
           model: [
             { id: "orphans", icon: "󰏖", title: "Orphan Packages", val: janitorRoot.stats.orphans, desc: "Unneeded dependency packages", btn: "Prune Orphans" },
-            { id: "pacman", icon: "󰋊", title: "Pacman Cache", val: janitorRoot.stats.pacman, desc: "/var/cache/pacman/pkg (keep 1)", btn: "Trim Cache" },
+            { id: "pacman", icon: "󰋊", title: "Pacman Cache", val: janitorRoot.stats.pacman, desc: "/var/cache/pacman/pkg (purge all)", btn: "Purge Cache" },
             { id: "yay", icon: "󰣇", title: "AUR Build Cache", val: janitorRoot.stats.yay, desc: "~/.cache/yay & paru artifacts", btn: "Purge AUR Cache" },
             { id: "journal", icon: "󰌱", title: "Systemd Journal", val: janitorRoot.stats.journal, desc: "/var/log/journal (>100M vacuum)", btn: "Vacuum Logs" },
             { id: "dev", icon: "󰅩", title: "Dev Caches", val: janitorRoot.stats.dev, desc: "npm, pip, cargo, go-build, gradle", btn: "Clean Dev Cache" },

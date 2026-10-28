@@ -7,6 +7,15 @@
 - `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 400 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
 
+## 2026-10-28 — Pacman Cache Purge Fix (`-rk0`) & Janitor UI Labeling
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `script/SudoKeeper.js›buildCacheCleanCommand`: Changed `paccache -rk1` to `paccache -rk0 -ruk0` (with `pacman -Scc --noconfirm` fallback) so all candidate packages in `/var/cache/pacman/pkg` are reclaimed instead of preserving 1 version of all currently installed packages.
+  - `SystemJanitorView.qml`: Updated Pacman Cache card subtext to `/var/cache/pacman/pkg (purge all)` and button label to `Purge Cache`.
+  - `tests/test_sudo_keeper.js`: Added unit test assertion verifying `buildCacheCleanCommand` contains `paccache -rk0`.
+- **Kanıt**: 7 Node.js test suites PASS (exit 0); `wc -l` ≤400 lines across all 25 files; 0 hex colors PASS; `omarchy plugin validate .` PASS; `omarchy-restart-shell` verified.
+- **Kalan boşluk**: Yok.
+
 ## 2026-10-28 — Orphan Dotfile Scanner Hardening & Backup Recovery
 
 - **Değişen alanlar (`path›symbol`)**:
