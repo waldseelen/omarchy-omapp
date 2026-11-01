@@ -51,6 +51,8 @@ assert.ok(orphanScan[2].includes('flatpak'));
 assert.ok(orphanScan[2].includes('first="${p%%-*}"'));
 assert.ok(orphanScan[2].includes('heroic'));
 assert.ok(orphanScan[2].includes('legendary'));
+assert.ok(orphanScan[2].includes('protonfixes'));
+assert.ok(!orphanScan[2].includes(' proton '));
 assert.ok(orphanScan[2].includes('bn_prefix="${bn%%[-_]*}"'));
 assert.ok(orphanScan[2].includes('ORPHAN'));
 

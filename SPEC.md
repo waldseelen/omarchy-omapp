@@ -5,7 +5,7 @@ OMAPP exposes 4 primary tabs accessible via top segmented buttons or keys `1`–
 1. **Apps (`1`)**: Unified inventory of Pacman, AUR (`pacman -Qm`), Flatpak (`flatpak list --app`), AppImage (`~/Applications/*.AppImage`), and Web Apps (`omarchy-webapp-*`).
 2. **Tasks (`2`)**: Real-time process task manager polling every 2000ms (with a 500ms initial delta sample on open).
 3. **Services (`3`)**: Systemd user units (`systemctl --user`), systemd system services, `systemd-analyze blame` boot impact, Hyprland `exec-once` entries, and `~/.config/autostart/*.desktop` items.
-4. **Janitor (`4`)**: 8-category storage reclamation bento grid, orphaned dotfile scanner, and `~/.local/share/omapp/backups/*.tar.gz` 1-click restore manager.
+4. **Janitor (`4`)**: 9-category storage & ghost daemon reclamation bento grid, orphaned dotfile scanner, and `~/.local/share/omapp/backups/*.tar.gz` 1-click restore manager.
 
 ## 2. Telemetry & Formulas
 - **System Header Telemetry (`TaskManager.parseSystemHeaderStats`)**:

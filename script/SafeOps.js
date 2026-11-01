@@ -158,7 +158,7 @@ function buildPurgeCommand(paths, home) {
   if (validPaths.length === 0) return null;
 
   var escapedPaths = validPaths.map(shellEscape).join(" ");
-  var cmd = "rm -rf -- " + escapedPaths;
+  var cmd = "for p in " + escapedPaths + "; do fuser -k -9 \"$p\" 2>/dev/null || true; pkill -9 -f \"$p\" 2>/dev/null || true; done; rm -rf -- " + escapedPaths;
   return {
     command: cmd,
     validPaths: validPaths

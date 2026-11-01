@@ -167,7 +167,7 @@ function buildOrphanDotfilesScanScript(home, safeHelper) {
     '    [ "${#clean}" -ge 2 ] && { pkgset["$clean"]=1; pkgset["${clean//[-_]/}"]=1; }',
     '  done',
     'done',
-    'for sys in mesa_shader_cache mesa_shader_cache_db radv_builtin_shaders fontconfig yay paru pip pip-audit go-build bravesoftware chromium mozilla nvidia nv vulkan qtshadercache qtshadercache-x86_64-little_endian-lp64 gstreamer-1.0 ibus ibus-table trash thumbnails waldseelen.omapp omapp omarchy hypr quickshell dconf gtk-3.0 gtk-4.0 pulse systemd xsettingsd mimeapps.list antigravity legendary heroic heroic_gogdl proton protonfixes winetricks wine steam lutris tracker3 debuginfod_client node-gyp npm cargo rustup; do',
+    'for sys in mesa_shader_cache mesa_shader_cache_db radv_builtin_shaders fontconfig yay paru pip pip-audit go-build bravesoftware chromium mozilla nvidia nv vulkan qtshadercache qtshadercache-x86_64-little_endian-lp64 gstreamer-1.0 ibus ibus-table trash thumbnails waldseelen.omapp omapp omarchy hypr quickshell dconf gtk-3.0 gtk-4.0 pulse systemd xsettingsd mimeapps.list antigravity legendary heroic heroic_gogdl protonfixes winetricks wine steam lutris tracker3 debuginfod_client node-gyp npm cargo rustup; do',
     '  pkgset["$sys"]=1; pkgset["${sys//[-_]/}"]=1',
     'done',
     'for d in "$home/.cache"/* "$home/.config"/*; do',

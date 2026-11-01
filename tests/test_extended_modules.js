@@ -54,7 +54,7 @@ assert.deepStrictEqual(
 
 // 3. JanitorOps (#16, #21-#25)
 const mockJanitorRaw = [
-  "STATS\t4\t1.2G\t450M\t320.5M\t204800\t512000\tImages: 1.4GB\t2\t1",
+  "STATS\t4\t1.2G\t450M\t320.5M\t204800\t512000\tImages: 1.4GB\t2\t1\t2",
   "===BACKUPS_START===",
   "/home/hp/.local/share/omapp/backups/obsidian-20261028.tar.gz\t1048576\t2026-10-28 12:00:00",
   "===BACKUPS_END==="
@@ -64,12 +64,17 @@ const jStats = JanitorOps.parseJanitorStats(mockJanitorRaw);
 assert.strictEqual(jStats.orphanText, "4 unneeded packages");
 assert.strictEqual(jStats.pacmanCache, "1.2G");
 assert.strictEqual(jStats.journalSize, "320.5M");
+assert.strictEqual(jStats.daemonsCount, 2);
+assert.strictEqual(jStats.daemons, "2 lingering daemons");
 assert.strictEqual(jStats.backups.length, 1);
 assert.strictEqual(jStats.backups[0].name, "obsidian-20261028.tar.gz");
 assert.strictEqual(jStats.backups[0].size, jStats.backups[0].sizeFormatted);
-assert.strictEqual(JanitorOps.parseJanitorStats("STATS\t0\t12\t8\t0B\t4\t8\t\t0\t0").yay, "0 B");
+assert.strictEqual(JanitorOps.parseJanitorStats("STATS\t0\t12\t8\t0B\t4\t8\t\t0\t0\t0").yay, "0 B");
+assert.strictEqual(JanitorOps.parseJanitorStats("STATS\t0\t12\t8\t0B\t4\t8\t\t0\t0\t0").daemons, "Clean / None");
 assert.ok(JanitorOps.buildCleanCommand("yay")[2].indexOf("CLEAN_OK:") !== -1);
 assert.ok(JanitorOps.buildCleanCommand("dev")[2].indexOf("_npx") !== -1);
+assert.ok(JanitorOps.buildCleanCommand("daemons")[2].indexOf("CLEAN_OK:") !== -1);
+assert.ok(JanitorOps.buildCleanGhostDaemonsCommand()[2].indexOf("pkill") !== -1);
 
 // 4. StateStore (#28 & #30)
 let pinMap = {};

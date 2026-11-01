@@ -1,11 +1,22 @@
 # PROGRESS.md
 
-## Current Gate Status (2026-10-28)
+## Current Gate Status (2026-10-30)
 
 - `omarchy plugin validate /home/hp/Work/omarchy-omapp`: **PASS** exit 0, schemaVersion 1, valid manifest & kinds/entrypoints mapping
 - `for t in tests/test_*.js; do node "$t" || exit 1; done`: **PASS** 7 suites (`test_safe_ops`, `test_sudo_keeper`, `test_scanner`, `test_sorter`, `test_task_manager`, `test_leftover_hunter`, `test_extended_modules`); 0 errors
 - `wc -l *.qml ui/*.qml script/*.js`: **PASS** all 25 source files ≤400 lines (max: `Omapp.qml` 400 lines, `LeftoverReviewModal.qml` 396 lines)
 - `! grep -En '#[0-9a-fA-F]{6}' *.qml ui/*.qml`: **PASS** 0 hardcoded hex colors across all QML files
+
+## 2026-10-30 — Ghost Daemon Cleaner & Purge Process Kill Hardening
+
+- **Değişen alanlar (`path›symbol`)**:
+  - `script/JanitorOps.js›buildJanitorScanScript, parseJanitorStats, buildCleanGhostDaemonsCommand, buildCleanCommand`: Added 9th System Janitor category `daemons` detecting lingering cache/VPN background processes (`gpg-agent` / `scdaemon` with `--homedir ~/.cache/` and `protonvpn` daemons) plus uninstalled Proton cache/config folders; added 1-click clean command `buildCleanGhostDaemonsCommand` to kill them and purge uninstalled residual VPN files.
+  - `SystemJanitorView.qml`: Expanded bento grid to 9 cards arranged in a 3x3 layout (`columns: 3`); added "Ghost Daemons" card with live count, inline confirmation, and clean action.
+  - `script/SafeOps.js›buildPurgeCommand`: Enhanced leftover purge command to invoke `fuser -k -9 "$p"` and `pkill -9 -f "$p"` before `rm -rf -- "$p"`, ensuring background processes holding file descriptors or sockets in target directories are terminated cleanly.
+  - `script/LeftoverHunter.js›buildOrphanDotfilesScanScript`: Removed bare `proton` from the system whitelist so uninstalled Proton VPN directories (`~/.cache/Proton`, `~/.config/Proton`) are flagged as orphaned dotfiles.
+  - `tests/test_safe_ops.js`, `tests/test_extended_modules.js`, `tests/test_leftover_hunter.js`: Updated assertions for `buildPurgeCommand` process termination prefix, `daemons` janitor scan stats & clean command, and `proton` whitelist exclusion.
+- **Kanıt**: 7 Node.js test suites PASS (exit 0); `wc -l` ≤400 lines across all 25 files; 0 hex colors PASS; `omarchy plugin validate .` PASS; `omarchy-restart-shell` verified.
+- **Kalan boşluk**: Yok.
 
 ## 2026-10-28 — Pacman Cache Purge Fix (`-rk0`) & Janitor UI Labeling
 

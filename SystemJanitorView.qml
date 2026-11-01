@@ -16,6 +16,7 @@ BorderSurface {
     symlinks: 0,
     pacnew: 0,
     browser: "Checking...",
+    daemons: "Checking...",
     backups: []
   })
   property string cleaningCategory: ""
@@ -167,10 +168,10 @@ BorderSurface {
 
       PanelSeparator { foreground: Color.menu.text }
 
-      // 8-Card Bento Grid (#21–#25) with 2-Step Inline Confirmation
+      // 9-Card Bento Grid (#21–#25) with 2-Step Inline Confirmation
       Grid {
         width: parent.width
-        columns: 4
+        columns: 3
         spacing: Style.space(10)
 
         Repeater {
@@ -182,7 +183,8 @@ BorderSurface {
             { id: "dev", icon: "󰅩", title: "Dev Caches", val: janitorRoot.stats.dev, desc: "npm, pip, cargo, go-build, gradle", btn: "Clean Dev Cache" },
             { id: "browser", icon: "󰖟", title: "Browser GPU/Cache", val: janitorRoot.stats.browser, desc: "Safe transient Cache (keeps logins)", btn: "Clean Cache" },
             { id: "docker", icon: "󰡨", title: "Docker Reclaimable", val: janitorRoot.stats.docker, desc: "Unused containers & build cache", btn: "Docker Prune" },
-            { id: "symlinks", icon: "󰌺", title: "Broken Symlinks", val: (janitorRoot.stats.symlinks || 0) + " broken links", desc: "Dangling ~/.config symlinks", btn: "Clean Links" }
+            { id: "symlinks", icon: "󰌺", title: "Broken Symlinks", val: (janitorRoot.stats.symlinks || 0) + " broken links", desc: "Dangling ~/.config symlinks", btn: "Clean Links" },
+            { id: "daemons", icon: "󱐌", title: "Ghost Daemons", val: janitorRoot.stats.daemons, desc: "Lingering VPN, GPG & cache daemons", btn: "Kill Daemons" }
           ]
 
           BorderSurface {
@@ -190,7 +192,7 @@ BorderSurface {
             readonly property bool isConfirming: janitorRoot.confirmingCategory === modelData.id
             readonly property bool isCleaningThis: janitorRoot.cleaningCategory === modelData.id
 
-            width: (parent.width - Style.space(30)) / 4
+            width: (parent.width - Style.space(20)) / 3
             height: Style.space(134)
             radius: Style.cornerRadius
             color: Style.hoverFill

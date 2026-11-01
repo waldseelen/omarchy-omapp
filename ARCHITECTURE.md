@@ -12,7 +12,7 @@ omarchy-omapp/
 ├── AppGridRow.qml             # Delegate row for Applications table
 ├── AppInspector.qml           # Right-hand inspector for selected package (files, dep tree, downgrade)
 ├── TaskManagerView.qml        # Split view for Tasks tab (6-column table + TaskInspector)
-├── SystemJanitorView.qml      # 8-card bento grid for System Janitor + Backup Restore list
+├── SystemJanitorView.qml      # 9-card bento grid for System Janitor + Backup Restore list
 ├── LeftoverReviewModal.qml    # 4-phase Deep Uninstall & residual file preview modal
 ├── SudoPromptModal.qml        # Password modal for `sudo -S -v` session unlock
 ├── ui/
@@ -29,7 +29,7 @@ omarchy-omapp/
 │   ├── TaskManager.js         # Process, DRM fdinfo GPU, NVIDIA GPU, /proc/io Disk B/s & system telemetry parser
 │   ├── TaskControl.js         # Kill, SIGSTOP/SIGCONT freeze, renice, taskset affinity, ss ports & PID journal logs
 │   ├── StartupServices.js     # Systemd user/system units, systemd-analyze blame, Hyprland & XDG autostart scanner
-│   ├── JanitorOps.js          # 8-category storage scanner & cleaner commands + backup archive listing
+│   ├── JanitorOps.js          # 9-category storage & ghost daemon scanner & cleaner commands + backup archive listing
 │   ├── LeftoverHunter.js      # Residual config/cache scanner, orphaned dotfile scanner & file preview builder
 │   ├── StateStore.js          # Persistent JSON preferences (`~/.local/state/omapp/preferences.json`)
 │   └── ModelSync.js           # In-place QML ListModel synchronizer & context menu action builders

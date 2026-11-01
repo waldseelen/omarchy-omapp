@@ -60,10 +60,10 @@ assert.strictEqual(backup.validPaths[0], "/home/hp/.config/obsidian");
 assert.ok(backup.command.includes("tar -czf"));
 assert.ok(backup.command.includes("obsidian-"));
 
-// Test buildPurgeCommand
+// Test buildPurgeCommand (ensures lingering processes referencing the targets are killed before deletion)
 const purge = SafeOps.buildPurgeCommand(["/home/hp/.config/obsidian", "/home/hp"], mockHome);
 assert.strictEqual(purge.validPaths.length, 1);
-assert.strictEqual(purge.command, "rm -rf -- '/home/hp/.config/obsidian'");
+assert.strictEqual(purge.command, "for p in '/home/hp/.config/obsidian'; do fuser -k -9 \"$p\" 2>/dev/null || true; pkill -9 -f \"$p\" 2>/dev/null || true; done; rm -rf -- '/home/hp/.config/obsidian'");
 
 // Test #20 Core package lock
 assert.strictEqual(SafeOps.isProtectedCorePackage("hyprland"), true);

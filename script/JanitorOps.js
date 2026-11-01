@@ -11,7 +11,26 @@ function buildJanitorScanScript() {
     'dckr=$(if command -v docker >/dev/null 2>&1; then docker system df --format "{{.Type}}: {{.Reclaimable}}" 2>/dev/null | head -n 2 | tr "\\n" " "; else echo "Not running"; fi)',
     'symlinks=$(find "$HOME/.config" "$HOME/.local/share" -maxdepth 2 -xtype l 2>/dev/null | wc -l)',
     'pacnew=$(find /etc -maxdepth 2 \\( -name "*.pacnew" -o -name "*.pacsave" \\) 2>/dev/null | wc -l)',
-    'echo -e "STATS\\t$orphans\\t$packb\\t$yaykb\\t$jrnlsz\\t$devkb\\t$brwkb\\t$dckr\\t$symlinks\\t$pacnew"',
+    'daemons=0',
+    'for pid in $(pgrep -x gpg-agent -x scdaemon 2>/dev/null); do',
+    '  if tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null | grep -qE -- "--homedir.*\\.cache"; then',
+    '    daemons=$((daemons + 1))',
+    '  fi',
+    'done',
+    'for pid in $(pgrep -x protonvpn -x protonvpn-cli -x proton-vpn 2>/dev/null); do',
+    '  daemons=$((daemons + 1))',
+    'done',
+    'for pid in $(pgrep -x python -x python3 2>/dev/null); do',
+    '  if tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null | grep -qE -- "protonvpn|proton_vpn"; then',
+    '    daemons=$((daemons + 1))',
+    '  fi',
+    'done',
+    'if [ -d "$HOME/.cache/Proton" ] || [ -d "$HOME/.config/Proton" ]; then',
+    '  if ! pacman -Qq proton-vpn-gtk-app protonvpn-cli protonvpn >/dev/null 2>&1; then',
+    '    daemons=$((daemons + 1))',
+    '  fi',
+    'fi',
+    'echo -e "STATS\\t$orphans\\t$packb\\t$yaykb\\t$jrnlsz\\t$devkb\\t$brwkb\\t$dckr\\t$symlinks\\t$pacnew\\t$daemons"',
     'echo "===BACKUPS_START==="',
     'for b in "$HOME/.local/share/omapp/backups"/*.tar.gz; do',
     '  [ -f "$b" ] || continue',
@@ -61,6 +80,8 @@ function parseJanitorStats(rawText) {
     symlinks: 0,
     pacnew: 0,
     brokenSymlinksText: "0 broken links",
+    daemons: "Clean / None",
+    daemonsCount: 0,
     backups: []
   };
   if (!rawText || typeof rawText !== "string") return res;
@@ -87,6 +108,9 @@ function parseJanitorStats(rawText) {
       res.symlinks = parseInt(p[8], 10) || 0;
       res.pacnew = parseInt(p[9], 10) || 0;
       res.brokenSymlinksText = res.symlinks + " broken symlinks · " + res.pacnew + " .pacnew";
+      var dCount = parseInt(p[10], 10) || 0;
+      res.daemonsCount = dCount;
+      res.daemons = dCount > 0 ? (dCount + (dCount === 1 ? " lingering daemon" : " lingering daemons")) : "Clean / None";
     }
   }
 
@@ -158,6 +182,27 @@ function buildCleanBrokenSymlinksCommand() {
   ];
 }
 
+function buildCleanGhostDaemonsCommand() {
+  var script = [
+    'for pid in $(pgrep -x gpg-agent -x scdaemon 2>/dev/null); do',
+    '  if tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null | grep -qE -- "--homedir.*\\.cache"; then',
+    '    kill -9 "$pid" 2>/dev/null || true',
+    '  fi',
+    'done',
+    'pkill -9 -x protonvpn -x protonvpn-cli -x proton-vpn 2>/dev/null || true',
+    'for pid in $(pgrep -x python -x python3 2>/dev/null); do',
+    '  if tr "\\0" " " < "/proc/$pid/cmdline" 2>/dev/null | grep -qE -- "protonvpn|proton_vpn"; then',
+    '    kill -9 "$pid" 2>/dev/null || true',
+    '  fi',
+    'done',
+    'if ! pacman -Qq proton-vpn-gtk-app protonvpn-cli protonvpn >/dev/null 2>&1; then',
+    '  rm -rf "$HOME/.cache/Proton" "$HOME/.config/Proton" 2>/dev/null || true',
+    'fi',
+    'echo "CLEAN_OK:Terminated lingering VPN & cache daemons"'
+  ].join("\n");
+  return ["bash", "-c", script];
+}
+
 function buildCleanCommand(cat) {
   if (cat === "yay") return buildCleanYayCommand();
   if (cat === "journal") return buildCleanJournalCommand();
@@ -165,6 +210,7 @@ function buildCleanCommand(cat) {
   if (cat === "browser") return buildCleanBrowserCachesCommand();
   if (cat === "docker") return buildCleanDockerCommand();
   if (cat === "symlinks") return buildCleanBrokenSymlinksCommand();
+  if (cat === "daemons") return buildCleanGhostDaemonsCommand();
   return null;
 }
 
@@ -178,6 +224,7 @@ if (typeof module !== 'undefined' && module.exports) {
     buildCleanBrowserCachesCommand: buildCleanBrowserCachesCommand,
     buildCleanDockerCommand: buildCleanDockerCommand,
     buildCleanBrokenSymlinksCommand: buildCleanBrokenSymlinksCommand,
+    buildCleanGhostDaemonsCommand: buildCleanGhostDaemonsCommand,
     buildCleanCommand: buildCleanCommand
   };
 }
